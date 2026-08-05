@@ -1,0 +1,725 @@
+-- ĐẶT TRONG LOCALSCRIPT (KHUNG XÁM 1/4)
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- 1. Xử lý trùng lặp GUI: Xóa bản cũ và tắt mọi tính năng đang chạy lập tức
+local oldGui = game:GetService("CoreGui"):FindFirstChild("GT_WIBUVN_PremiumMenu")
+if oldGui then
+	oldGui:Destroy()
+end
+
+local Localization = {
+	Current = "VI",
+	Order = {"VI", "EN", "ES", "PT", "ID", "PH"},
+	Languages = {
+		VI = {
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "XÁC NHẬN",
+			ConfirmDesc = "Bạn có chắc chắn muốn xóa hoàn toàn Menu không? Mọi tính năng sẽ bị tắt.",
+			Yes = "Đúng", No = "Không", LangName = "Ngôn ngữ: Tiếng Việt",
+			FixLag = "Tối Ưu Lag", FixLagDesc = "Giảm đồ họa, tăng FPS tối đa.",
+			Fly = "Bay Lượn", FlyDesc = "Tự do bay lượn trên không trung.",
+			InfJump = "Nhảy Vô Hạn", InfJumpDesc = "Nhảy liên tục không giới hạn.",
+			JumpBoost = "Tăng Nhảy", JumpBoostDesc = "Tùy chỉnh sức mạnh cú nhảy.",
+			SpeedBoost = "Tăng Tốc", SpeedBoostDesc = "Tùy chỉnh tốc độ di chuyển.",
+			FlyCam = "Camera Tự Do", FlyCamDesc = "Rời camera khỏi nhân vật để xem xung quanh.",
+			Fulbright = "Thắp Sáng", FulbrightDesc = "Xóa bỏ bóng tối, làm sáng bản đồ.",
+			Noclip = "Xuyên Tường", NoclipDesc = "Đi xuyên qua mọi vật thể vật lý.",
+			ValueLabel = "Độ lớn: ",
+		},
+		EN = {
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "CONFIRMATION",
+			ConfirmDesc = "Are you sure you want to delete the Menu? All features will turn off.",
+			Yes = "Yes", No = "No", LangName = "Language: English",
+			FixLag = "Fix Lag", FixLagDesc = "Reduce graphics to maximize FPS.",
+			Fly = "Fly Hack", FlyDesc = "Fly freely around the map.",
+			InfJump = "Infinite Jump", InfJumpDesc = "Jump continuously without stopping.",
+			JumpBoost = "Jump Boost", JumpBoostDesc = "Customize your jump power.",
+			SpeedBoost = "Speed Boost", SpeedBoostDesc = "Customize your movement speed.",
+			FlyCam = "Free Cam", FlyCamDesc = "Detach camera to explore the map.",
+			Fulbright = "Full Bright", FulbrightDesc = "Remove darkness and illuminate map.",
+			Noclip = "Noclip", NoclipDesc = "Walk through all physical walls.",
+			ValueLabel = "Value: ",
+		},
+		ES = { -- Tiếng Tây Ban Nha
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "CONFIRMACIÓN",
+			ConfirmDesc = "¿Estás seguro de que quieres eliminar el menú? Se apagarán todas las funciones.",
+			Yes = "Sí", No = "No", LangName = "Idioma: Español",
+			FixLag = "Optimizar Lag", FixLagDesc = "Reduce los gráficos para maximizar FPS.",
+			Fly = "Modo Vuelo", FlyDesc = "Vuela libremente por el mapa.",
+			InfJump = "Salto Infinito", InfJumpDesc = "Salta continuamente sin parar.",
+			JumpBoost = "Mejorar Salto", JumpBoostDesc = "Personaliza la fuerza de tu salto.",
+			SpeedBoost = "Mejorar Vel.", SpeedBoostDesc = "Personaliza tu velocidad de movimiento.",
+			FlyCam = "Cámara Libre", FlyCamDesc = "Separa la cámara para explorar el mapa.",
+			Fulbright = "Brillo Total", FulbrightDesc = "Elimina la oscuridad e ilumina el mapa.",
+			Noclip = "Noclip", NoclipDesc = "Camina a través de todas las paredes.",
+			ValueLabel = "Valor: ",
+		},
+		PT = { -- Tiếng Bồ Đào Nha
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "CONFIRMAÇÃO",
+			ConfirmDesc = "Tem certeza de que deseja deletar o Menu? Todos os recursos serão desligados.",
+			Yes = "Sim", No = "Não", LangName = "Idioma: Português",
+			FixLag = "Otimizar Lag", FixLagDesc = "Reduz đồ họa para maximizar o FPS.",
+			Fly = "Modo Voo", FlyDesc = "Voa livremente pelo mapa.",
+			InfJump = "Pulo Infinito", InfJumpDesc = "Pula continuamente sem parar.",
+			JumpBoost = "Força do Pulo", JumpBoostDesc = "Personaliza a força do seu pulo.",
+			SpeedBoost = "Velocidade", SpeedBoostDesc = "Personaliza sua velocidade de movimento.",
+			FlyCam = "Câmera Livre", FlyCamDesc = "Destaca a câmera para explorar o mapa.",
+			Fulbright = "Brilho Total", FulbrightDesc = "Remove a escuridão e ilumina o mapa.",
+			Noclip = "Noclip", NoclipDesc = "Atravessa todas as paredes físicas.",
+			ValueLabel = "Valor: ",
+		},
+		ID = { -- Tiếng Indonesia
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "KONFIRMASI",
+			ConfirmDesc = "Apakah Anda yakin ingin menghapus Menu? Semua fitur akan dimatikan.",
+			Yes = "Ya", No = "Tidak", LangName = "Bahasa: Indonesia",
+			FixLag = "Atasi Lag", FixLagDesc = "Kurangi grafik untuk memaksimalkan FPS.",
+			Fly = "Terbang", FlyDesc = "Terbang bebas di sekitar peta.",
+			InfJump = "Lompat Tanpa Batas", InfJumpDesc = "Lompat terus menerus tanpa hentian.",
+			JumpBoost = "Lompatan Kuat", JumpBoostDesc = "Sesuaikan kekuatan lompatan Anda.",
+			SpeedBoost = "Kecepatan", SpeedBoostDesc = "Sesuaikan kecepatan gerakan Anda.",
+			FlyCam = "Kamera Bebas", FlyCamDesc = "Lepaskan kamera untuk menjelajahi peta.",
+			Fulbright = "Terang Penuh", FulbrightDesc = "Hapus kegelapan dan menerangi peta.",
+			Noclip = "Noclip", NoclipDesc = "Berjalan menembus semua dinding fisik.",
+			ValueLabel = "Nilai: ",
+		},
+		PH = { -- Tiếng Philippines (Tagalog)
+			Title = "GT_WIBUVN PREMIUM", ConfirmTitle = "KUMPIRMASYON",
+			ConfirmDesc = "Sigurado ka ba na gusto mong burahin ang Menu? Lahat ng feature ay papatayin.",
+			Yes = "Oo", No = "Hindi", LangName = "Wika: Tagalog",
+			FixLag = "Ayusin ang Lag", FixLagDesc = "Bawasan ang graphics para i-maximize ang FPS.",
+			Fly = "Lipad", FlyDesc = "Lumipad nang malaya sa buong mapa.",
+			InfJump = "Walang Katapusang Talon", InfJumpDesc = "Tumalon nang patuloy nang walang hinto.",
+			JumpBoost = "Taas ng Talon", JumpBoostDesc = "I-customize ang lakas ng iyong talon.",
+			SpeedBoost = "Bilis", SpeedBoostDesc = "I-customize ang bilis ng iyong paglakad.",
+			FlyCam = "Libreng Kamera", FlyCamDesc = "Ihiwalay ang camera para galugarin ang mapa.",
+			Fulbright = "Maliwanag", FulbrightDesc = "Alisin ang dilim at pinaliliwanag ang mapa.",
+			Noclip = "Noclip", NoclipDesc = "Maglakad sa pamamagitan ng lahat ng mga pader.",
+			ValueLabel = "Halaga: ",
+		}
+	}
+}
+
+-- 3. Khởi tạo ScreenGui chính duy nhất trên màn hình
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GT_WIBUVN_PremiumMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = game:GetService("CoreGui")
+
+-- Quản lý trạng thái tính năng để dọn dẹp môi trường khi xóa hoặc ghi đè GUI
+local ActiveConnections = {}
+local OriginalLighting = {
+	Ambient = game.Lighting.Ambient,
+	OutdoorAmbient = game.Lighting.OutdoorAmbient,
+	Brightness = game.Lighting.Brightness
+}
+
+local function CleanUpFeatures()
+	for _, conn in pairs(ActiveConnections) do
+		if typeof(conn) == "RBXScriptConnection" then conn:Disconnect() end
+	end
+	ActiveConnections = {}
+	
+	game.Lighting.Ambient = OriginalLighting.Ambient
+	game.Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+	game.Lighting.Brightness = OriginalLighting.Brightness
+	
+	local character = player.Character
+	if character then
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = 16
+			humanoid.JumpPower = 50
+			for _, part in pairs(character:GetChildren()) do
+				if part:IsA("BasePart") then part.CanCollide = true end
+			end
+		end
+	end
+end
+
+ScreenGui.Destroying:Connect(CleanUpFeatures)
+
+-- ĐẶT TIẾP VÀO TRONG LOCALSCRIPT (KHUNG XÁM 2/4)
+
+-- Nút Bật/Tắt ẩn hiện GUI thiết kế dạng tròn nhỏ (Tối ưu cho cả Mobile)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0, 60, 0, 60)
+ToggleButton.Position = UDim2.new(0, 20, 0, 20)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.Text = "MENU"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 14
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 30)
+ToggleCorner.Parent = ToggleButton
+local ToggleStroke = Instance.new("UIStroke")
+ToggleStroke.Color = Color3.fromRGB(0, 170, 255)
+ToggleStroke.Thickness = 2
+ToggleStroke.Parent = ToggleButton
+ToggleButton.Parent = ScreenGui
+
+-- Khung Menu Chính (Main Frame) tỉ lệ chuẩn
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 450, 0, 320)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -160)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = true
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = MainFrame
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(45, 45, 45)
+MainStroke.Thickness = 1
+MainStroke.Parent = MainFrame
+MainFrame.Parent = ScreenGui
+
+-- Thanh Tiêu Đề (Title Bar) dùng để nhấn kéo thả di chuyển GUI
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+TitleBar.BorderSizePixel = 0
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+TitleBar.Parent = MainFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(0.6, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0, 15, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = Localization.Languages.VI.Title
+TitleLabel.TextColor3 = Color3.fromRGB(0, 170, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 16
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+-- Bản quyền Credit Tên GT_WIBUVN (ĐÃ FIX: Đổi sang Gotham để tránh lỗi)
+local CreditLabel = Instance.new("TextLabel")
+CreditLabel.Size = UDim2.new(0, 120, 0, 20)
+CreditLabel.Position = UDim2.new(1, -135, 1, -25)
+CreditLabel.BackgroundTransparency = 1
+CreditLabel.Text = "by GT_WIBUVN"
+CreditLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+CreditLabel.Font = Enum.Font.Gotham
+CreditLabel.TextSize = 12
+CreditLabel.TextXAlignment = Enum.TextXAlignment.Right
+CreditLabel.Parent = MainFrame
+
+-- Nút Xóa Hoàn Toàn GUI (Nút X đỏ trên thanh tiêu đề)
+local CloseAllButton = Instance.new("TextButton")
+CloseAllButton.Size = UDim2.new(0, 30, 0, 30)
+CloseAllButton.Position = UDim2.new(1, -40, 0, 5)
+CloseAllButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseAllButton.Text = "✕"
+CloseAllButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseAllButton.Font = Enum.Font.GothamBold
+CloseAllButton.TextSize = 14
+local CloseAllCorner = Instance.new("UICorner")
+CloseAllCorner.CornerRadius = UDim.new(0, 6)
+CloseAllCorner.Parent = CloseAllButton
+CloseAllButton.Parent = TitleBar
+
+-- Khung hiển thị danh sách cuộn mượt mà các tính năng (Scrolling Content)
+local ContentScroll = Instance.new("ScrollingFrame")
+ContentScroll.Size = UDim2.new(1, -20, 1, -95)
+ContentScroll.Position = UDim2.new(0, 10, 0, 50)
+ContentScroll.BackgroundTransparency = 1
+ContentScroll.BorderSizePixel = 0
+ContentScroll.ScrollBarThickness = 4
+ContentScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 170, 255)
+ContentScroll.Parent = MainFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 8)
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Parent = ContentScroll
+
+ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Thanh công cụ trạng thái bên dưới (Footer)
+local FooterBar = Instance.new("Frame")
+FooterBar.Size = UDim2.new(1, -20, 0, 35)
+FooterBar.Position = UDim2.new(0, 10, 1, -40)
+FooterBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+local FooterCorner = Instance.new("UICorner")
+FooterCorner.CornerRadius = UDim.new(0, 6)
+FooterCorner.Parent = FooterBar
+FooterBar.Parent = MainFrame
+
+local FPSLabel = Instance.new("TextLabel")
+FPSLabel.Size = UDim2.new(0, 70, 1, 0)
+FPSLabel.Position = UDim2.new(0, 10, 0, 0)
+FPSLabel.BackgroundTransparency = 1
+FPSLabel.Text = "FPS: --"
+FPSLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+FPSLabel.Font = Enum.Font.GothamSemibold
+FPSLabel.TextSize = 12
+FPSLabel.TextXAlignment = Enum.TextXAlignment.Left
+FPSLabel.Parent = FooterBar
+
+local PingLabel = Instance.new("TextLabel")
+PingLabel.Size = UDim2.new(0, 80, 1, 0)
+PingLabel.Position = UDim2.new(0, 85, 0, 0)
+PingLabel.BackgroundTransparency = 1
+PingLabel.Text = "Ping: --"
+PingLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+PingLabel.Font = Enum.Font.GothamSemibold
+PingLabel.TextSize = 12
+PingLabel.TextXAlignment = Enum.TextXAlignment.Left
+PingLabel.Parent = FooterBar
+
+local LangButton = Instance.new("TextButton")
+LangButton.Size = UDim2.new(0, 150, 0, 25)
+LangButton.Position = UDim2.new(1, -160, 0, 5)
+LangButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+LangButton.Text = "Ngôn ngữ: Tiếng Việt"
+LangButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+LangButton.Font = Enum.Font.Gotham
+LangButton.TextSize = 11
+local LangCorner = Instance.new("UICorner")
+LangCorner.CornerRadius = UDim.new(0, 4)
+LangCorner.Parent = LangButton
+LangButton.Parent = FooterBar
+
+local function SetupDrag(guiElement, dragHandle)
+	local dragging, dragInput, dragStart, startPos
+	dragHandle.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiElement.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
+			end)
+		end
+	end)
+	dragHandle.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			guiElement.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+end
+
+-- Kích hoạt tính năng kéo thả
+SetupDrag(MainFrame, TitleBar)      -- Kéo khung chính bằng thanh tiêu đề
+SetupDrag(ToggleButton, ToggleButton) -- Kéo nút MENU tròn bằng chính nó
+
+ToggleButton.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+local RegistryElements = {}
+
+-- Hàm xây dựng hàng chức năng, tùy chỉnh riêng kiểu nút RUN xanh dương cho FixLag
+local function CreateFeatureRow(id, icon, defaultOn, callback, hasSlider, sliderMin, sliderMax, sliderDefault, sliderCallback)
+	local Row = Instance.new("Frame")
+	Row.Size = UDim2.new(1, -10, 0, 65)
+	Row.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+	local RowCorner = Instance.new("UICorner")
+	RowCorner.CornerRadius = UDim.new(0, 6)
+	RowCorner.Parent = Row
+	Row.Parent = ContentScroll
+
+	local IconLabel = Instance.new("TextLabel")
+	IconLabel.Size = UDim2.new(0, 30, 0, 30)
+	IconLabel.Position = UDim2.new(0, 10, 0, 8)
+	IconLabel.BackgroundTransparency = 1
+	IconLabel.Text = icon
+	IconLabel.TextSize = 20
+	IconLabel.Parent = Row
+
+	local TitleTxt = Instance.new("TextLabel")
+	TitleTxt.Size = UDim2.new(0.5, 0, 0, 20)
+	TitleTxt.Position = UDim2.new(0, 45, 0, 6)
+	TitleTxt.BackgroundTransparency = 1
+	TitleTxt.Font = Enum.Font.GothamBold
+	TitleTxt.TextSize = 14
+	TitleTxt.TextColor3 = Color3.fromRGB(240, 240, 240)
+	TitleTxt.TextXAlignment = Enum.TextXAlignment.Left
+	TitleTxt.Parent = Row
+
+	local DescTxt = Instance.new("TextLabel")
+	DescTxt.Size = UDim2.new(0.6, 0, 0, 30)
+	DescTxt.Position = UDim2.new(0, 45, 0, 24)
+	DescTxt.BackgroundTransparency = 1
+	DescTxt.Font = Enum.Font.Gotham
+	DescTxt.TextSize = 11
+	DescTxt.TextColor3 = Color3.fromRGB(160, 160, 160)
+	DescTxt.TextXAlignment = Enum.TextXAlignment.Left
+	DescTxt.TextWrapped = true
+	DescTxt.Parent = Row
+
+	local StateBtn = Instance.new("TextButton")
+	StateBtn.Size = UDim2.new(0, 75, 0, 28)
+	StateBtn.Position = UDim2.new(1, -85, 0, 10)
+	
+	-- Thiết lập hiển thị đặc biệt cho nút Fix Lag (ID: FixLag) thành RUN màu xanh dương cố định
+	if id == "FixLag" then
+		StateBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+		StateBtn.Text = "RUN"
+	else
+		StateBtn.BackgroundColor3 = defaultOn and Color3.fromRGB(46, 117, 89) or Color3.fromRGB(162, 59, 59)
+		StateBtn.Text = defaultOn and "ON" or "OFF"
+	end
+	
+	StateBtn.Font = Enum.Font.GothamBold
+	StateBtn.TextSize = 12
+	StateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	local BtnCorner = Instance.new("UICorner")
+	BtnCorner.CornerRadius = UDim.new(0, 4)
+	BtnCorner.Parent = StateBtn
+	StateBtn.Parent = Row
+
+	local SliderFrame
+	if hasSlider then
+		Row.Size = UDim2.new(1, -10, 0, 100)
+		SliderFrame = Instance.new("Frame")
+		SliderFrame.Size = UDim2.new(1, -20, 0, 30)
+		SliderFrame.Position = UDim2.new(0, 10, 0, 62)
+		SliderFrame.BackgroundTransparency = 1
+		SliderFrame.Visible = defaultOn
+		SliderFrame.Parent = Row
+
+		local SliderLabel = Instance.new("TextLabel")
+		SliderLabel.Size = UDim2.new(0.3, 0, 1, 0)
+		SliderLabel.BackgroundTransparency = 1
+		SliderLabel.Font = Enum.Font.GothamSemibold
+		SliderLabel.TextSize = 11
+		SliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+		SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+		SliderLabel.Parent = SliderFrame
+
+		local SliderBar = Instance.new("Frame")
+		SliderBar.Size = UDim2.new(0.65, 0, 0, 6)
+		SliderBar.Position = UDim2.new(0.35, 0, 0.5, -3)
+		SliderBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+		local SbCorner = Instance.new("UICorner")
+		SbCorner.CornerRadius = UDim.new(0, 3)
+		SbCorner.Parent = SliderBar
+		SliderBar.Parent = SliderFrame
+
+		local SliderFill = Instance.new("Frame")
+		SliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+		local SfCorner = Instance.new("UICorner")
+		SfCorner.CornerRadius = UDim.new(0, 3)
+		SfCorner.Parent = SliderFill
+		SliderFill.Parent = SliderBar
+
+		local currentVal = sliderDefault
+		local function UpdateSlider(inputPosition)
+			local percentage = math.clamp((inputPosition - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+			SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+			currentVal = math.round(sliderMin + (percentage * (sliderMax - sliderMin)))
+			local langData = Localization.Languages[Localization.Current]
+			SliderLabel.Text = (langData and langData.ValueLabel or "Value: ") .. tostring(currentVal)
+			if sliderCallback then sliderCallback(currentVal) end
+		end
+
+		SliderBar.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				UpdateSlider(input.Position.X)
+				local moveConn, endConn
+				moveConn = UserInputService.InputChanged:Connect(function(moveInput)
+					if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+						UpdateSlider(moveInput.Position.X)
+					end
+				end)
+				endConn = UserInputService.InputEnded:Connect(function(endInput)
+					if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+						moveConn:Disconnect()
+						endConn:Disconnect()
+					end
+				end)
+			end
+		end)
+		
+		local initPercent = (sliderDefault - sliderMin) / (sliderMax - sliderMin)
+		SliderFill.Size = UDim2.new(initPercent, 0, 1, 0)
+	end
+
+	local isTrackingOn = defaultOn
+	StateBtn.MouseButton1Click:Connect(function()
+		isTrackingOn = not isTrackingOn
+		if id ~= "FixLag" then
+			if isTrackingOn then
+				StateBtn.Text = "ON"
+				StateBtn.BackgroundColor3 = Color3.fromRGB(46, 117, 89)
+				if SliderFrame then SliderFrame.Visible = true end
+			else
+				StateBtn.Text = "OFF"
+				StateBtn.BackgroundColor3 = Color3.fromRGB(162, 59, 59)
+				if SliderFrame then SliderFrame.Visible = false end
+			end
+		end
+		callback(isTrackingOn)
+	end)
+
+	table.insert(RegistryElements, {
+		id = id, Title = TitleTxt, Desc = DescTxt, SliderFrame = SliderFrame
+	})
+end
+
+local function ApplyLanguage()
+	local data = Localization.Languages[Localization.Current]
+	TitleLabel.Text = data.Title
+	LangButton.Text = data.LangName
+	for _, element in pairs(RegistryElements) do
+		if data[element.id] then element.Title.Text = data[element.id] end
+		if data[element.id .. "Desc"] then element.Desc.Text = data[element.id .. "Desc"] end
+		if element.SliderFrame then
+			local label = element.SliderFrame:FindFirstChildOfClass("TextLabel")
+			if label then
+				local numStr = string.match(label.Text, "%d+") or ""
+				label.Text = data.ValueLabel .. numStr
+			end
+		end
+	end
+end
+
+LangButton.MouseButton1Click:Connect(function()
+	local currentIndex = table.find(Localization.Order, Localization.Current) or 1
+	local nextIndex = currentIndex + 1
+	if nextIndex > #Localization.Order then nextIndex = 1 end
+	Localization.Current = Localization.Order[nextIndex]
+	ApplyLanguage()
+end)
+
+-- ĐẶT VÀO PHẦN CUỐI CÙNG CỦA LOCALSCRIPT (KHUNG XÁM 4/4)
+
+-- 1. Tính năng Tối Ưu Lag (Fix Lag)
+CreateFeatureRow("FixLag", "⚡", false, function(on)
+	if on then
+		settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v:IsA("PostEffect") or v:IsA("Explosion") then v.Enabled = false end
+		end
+	else
+		settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+	end
+end)
+
+-- 2. Tính năng Bay (Fly)
+local flySpeed = 50
+CreateFeatureRow("Fly", "✈️", false, function(on)
+	local char = player.Character or player.CharacterAdded:Wait()
+	local root = char:WaitForChild("HumanoidRootPart")
+	if on then
+		local bv = Instance.new("BodyVelocity")
+		bv.Name = "FlyBV"
+		bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+		bv.Velocity = Vector3.new(0, 0, 0)
+		bv.Parent = root
+		
+		local conn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			local moveDir = Vector3.new()
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - cam.CFrame.RightVector end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + cam.CFrame.RightVector end
+			bv.Velocity = moveDir * flySpeed
+		end)
+		ActiveConnections["Fly"] = conn
+	else
+		if root:FindFirstChild("FlyBV") then root.FlyBV:Destroy() end
+		if ActiveConnections["Fly"] then ActiveConnections["Fly"]:Disconnect() end
+	end
+end)
+
+-- 3. Tính năng Nhảy Vô Hạn (Inf Jump)
+CreateFeatureRow("InfJump", "🦘", false, function(on)
+	if on then
+		local conn = UserInputService.JumpRequest:Connect(function()
+			local char = player.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+		end)
+		ActiveConnections["InfJump"] = conn
+	else
+		if ActiveConnections["InfJump"] then ActiveConnections["InfJump"]:Disconnect() end
+	end
+end)
+
+-- 4. Tính năng Tăng Nhảy (Jump Boost - Có biên độ điều chỉnh khi ON)
+local jumpPower = 50
+CreateFeatureRow("JumpBoost", "🚀", false, function(on)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum then
+		hum.JumpPower = on and jumpPower or 50
+		hum.UseJumpPower = true
+	end
+end, true, 50, 300, 100, function(val)
+	jumpPower = val
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.JumpPower ~= 50 then hum.JumpPower = jumpPower end
+end)
+
+-- 5. Tính năng Tăng Tốc (Speed Boost - Có biên độ điều chỉnh khi ON)
+local walkSpeed = 16
+CreateFeatureRow("SpeedBoost", "🏃", false, function(on)
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum then hum.WalkSpeed = on and walkSpeed or 16 end
+end, true, 16, 250, 50, function(val)
+	walkSpeed = val
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if hum and hum.WalkSpeed ~= 16 then hum.WalkSpeed = walkSpeed end
+end)
+
+-- 6. Tính năng Camera Tự Do (FlyCam)
+CreateFeatureRow("FlyCam", "🎥", false, function(on)
+	if on then
+		workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+		local conn = RunService.RenderStepped:Connect(function()
+			local cam = workspace.CurrentCamera
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then cam.CFrame = cam.CFrame * CFrame.new(0,0,-2) end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then cam.CFrame = cam.CFrame * CFrame.new(0,0,2) end
+		end)
+		ActiveConnections["FlyCam"] = conn
+	else
+		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+		if ActiveConnections["FlyCam"] then ActiveConnections["FlyCam"]:Disconnect() end
+	end
+end)
+
+-- 7. Tính năng Làm Sáng (Fulbright)
+CreateFeatureRow("Fulbright", "☀️", false, function(on)
+	if on then
+		game.Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+		game.Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+		game.Lighting.Brightness = 3
+	else
+		game.Lighting.Ambient = OriginalLighting.Ambient
+		game.Lighting.OutdoorAmbient = OriginalLighting.OutdoorAmbient
+		game.Lighting.Brightness = OriginalLighting.Brightness
+	end
+end)
+
+-- 8. Tính năng Xuyên Tường (Noclip)
+CreateFeatureRow("Noclip", "🧱", false, function(on)
+	if on then
+		local conn = RunService.Stepped:Connect(function()
+			local char = player.Character
+			if char then
+				for _, p in pairs(char:GetChildren()) do
+					if p:IsA("BasePart") then p.CanCollide = false end
+				end
+			end
+		end)
+		ActiveConnections["Noclip"] = conn
+	else
+		if ActiveConnections["Noclip"] then ActiveConnections["Noclip"]:Disconnect() end
+	end
+end)
+
+ApplyLanguage()
+
+-- ---- CẬP NHẬT CHỈ SỐ FPS & PING THỜI GIAN THỰC ----
+local fpsCount = 0
+RunService.RenderStepped:Connect(function() fpsCount = fpsCount + 1 end)
+task.spawn(function()
+	while task.wait(1) do
+		FPSLabel.Text = "FPS: " .. tostring(fpsCount)
+		fpsCount = 0
+		local ping = tonumber(string.format("%.0f", player:GetNetworkPing() * 1000))
+		PingLabel.Text = "Ping: " .. tostring(ping) .. "ms"
+	end
+end)
+
+-- ---- BẢNG ĐIỀU HƯỚNG THÔNG BÁO XÁC NHẬN XÓA HOÀN TOÀN GUI ----
+local function CreateConfirmModal(onYes)
+	local ModalOverlay = Instance.new("TextButton")
+	ModalOverlay.Size = UDim2.new(1, 0, 1, 0)
+	ModalOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ModalOverlay.BackgroundTransparency = 0.5
+	ModalOverlay.Text = ""
+	ModalOverlay.Parent = ScreenGui
+
+	local Box = Instance.new("Frame")
+	Box.Size = UDim2.new(0, 320, 0, 160)
+	Box.Position = UDim2.new(0.5, -160, 0.5, -80)
+	Box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	local BoxCorner = Instance.new("UICorner")
+	BoxCorner.CornerRadius = UDim.new(0, 10)
+	BoxCorner.Parent = Box
+	Box.Parent = ModalOverlay
+
+	local currentLang = Localization.Languages[Localization.Current]
+
+	local Head = Instance.new("TextLabel")
+	Head.Size = UDim2.new(1, 0, 0, 35)
+	Head.Text = currentLang.ConfirmTitle
+	Head.TextColor3 = Color3.fromRGB(235, 87, 87)
+	Head.Font = Enum.Font.GothamBold
+	Head.TextSize = 14
+	Head.BackgroundTransparency = 1
+	Head.Parent = Box
+
+	local Desc = Instance.new("TextLabel")
+	Desc.Size = UDim2.new(1, -30, 0, 50)
+	Desc.Position = UDim2.new(0, 15, 0, 40)
+	Desc.Text = currentLang.ConfirmDesc
+	Desc.TextColor3 = Color3.fromRGB(220, 220, 220)
+	Desc.Font = Enum.Font.Gotham
+	Desc.TextSize = 12
+	Desc.TextWrapped = true
+	Desc.BackgroundTransparency = 1
+	Desc.Parent = Box
+
+	local YesBtn = Instance.new("TextButton")
+	YesBtn.Size = UDim2.new(0, 100, 0, 32)
+	YesBtn.Position = UDim2.new(0.15, 0, 0.7, 0)
+	YesBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	YesBtn.Text = currentLang.Yes
+	YesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	YesBtn.Font = Enum.Font.GothamBold
+	YesBtn.TextSize = 12
+	local Yc = Instance.new("UICorner") Yc.CornerRadius = UDim.new(0, 5) Yc.Parent = YesBtn
+	YesBtn.Parent = Box
+
+	local NoBtn = Instance.new("TextButton")
+	NoBtn.Size = UDim2.new(0, 100, 0, 32)
+	NoBtn.Position = UDim2.new(0.55, 0, 0.7, 0)
+	NoBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+	NoBtn.Text = currentLang.No
+	NoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	NoBtn.Font = Enum.Font.GothamBold
+	NoBtn.TextSize = 12
+	local Nc = Instance.new("UICorner") Nc.CornerRadius = UDim.new(0, 5) Nc.Parent = NoBtn
+	NoBtn.Parent = Box
+
+	YesBtn.MouseButton1Click:Connect(function()
+		ModalOverlay:Destroy()
+		onYes()
+	end)
+	NoBtn.MouseButton1Click:Connect(function()
+		ModalOverlay:Destroy()
+	end)
+end
+
+CloseAllButton.MouseButton1Click:Connect(function()
+	CreateConfirmModal(function()
+		ScreenGui:Destroy()
+	end)
+end)
