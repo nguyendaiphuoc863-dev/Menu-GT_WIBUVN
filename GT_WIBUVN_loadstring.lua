@@ -32,7 +32,6 @@ local GuiService = game:GetService("GuiService")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 ----------------------------------------------------------------
 -- CONFIG
@@ -57,7 +56,7 @@ local MAX_FLY = 200
 -- REMOVE OLD GUI
 ----------------------------------------------------------------
 
-local OldGui = PlayerGui:FindFirstChild(GUI_NAME)
+local OldGui = game:GetService("CoreGui"):FindFirstChild(GUI_NAME)
 
 if OldGui then
 	pcall(function()
@@ -457,7 +456,7 @@ local Languages = {
 		On = "AKTIF",
 		Off = "NONAKTIF",
 		Run = "JALANKAN",
-		
+
 		FixLag = "Fix Lag",
 		FixLagDesc = "Mengurangi efek client yang tidak diperlukan.",
 
@@ -1008,7 +1007,7 @@ local ScreenGui = Create("ScreenGui", {
 	IgnoreGuiInset = true,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	DisplayOrder = 999,
-}, PlayerGui)
+}, game:GetService("CoreGui"))
 
 ----------------------------------------------------------------
 -- OPEN BUTTON
@@ -2672,8 +2671,8 @@ local function ToggleFeature(key, value)
 	State[key] = value
 
 	if key == "FixLag" then
-		 SetEffectsEnabled(true)
-   		 State.FixLag = false
+		SetEffectsEnabled(true)
+		State.FixLag = false
 
 	elseif key == "Fly" then
 		if value then
