@@ -1,4 +1,3 @@
-local chunk = [=[
 --[[
     GT_WIBUVN - Universal Player Menu
     Version: 1.0
@@ -3022,21 +3021,30 @@ AddHover(
 	Color3.fromRGB(45,50,65)
 )
 
-local function UpdateGTGui()
+----------------------------------------------------------------
+-- ROBLOX ESC MENU SAFETY
+----------------------------------------------------------------
+
+Connect(GuiService.MenuOpened, function()
+	if State.Destroyed then
+		return
+	end
+
+	-- Không tắt GUI khi nhấn ESC
 	if ScreenGui and ScreenGui.Parent then
 		ScreenGui.Enabled = true
 	end
-end
-
-GuiService.MenuOpened:Connect(function()
-	-- Roblox Menu đã mở
-	-- Không xóa hoặc disable GUI GT_WIBUVN
-	UpdateGTGui()
 end)
 
-GuiService.MenuClosed:Connect(function()
-	-- Roblox Menu đóng
-	UpdateGTGui()
+Connect(GuiService.MenuClosed, function()
+	if State.Destroyed then
+		return
+	end
+
+	-- Hiện lại GUI sau khi đóng ESC
+	if ScreenGui and ScreenGui.Parent then
+		ScreenGui.Enabled = true
+	end
 end)
 
 ----------------------------------------------------------------
@@ -3085,13 +3093,3 @@ end)
 ----------------------------------------------------------------
 
 print("[GT_WIBUVN] Menu loaded successfully.")
-]=]
-
-local chunk_name = "GT_WIBUVN"
-
-local fn, err = loadstring(chunk, chunk_name)
-if not fn then
-	error(err)
-end
-
-return fn()
