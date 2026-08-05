@@ -1,0 +1,872 @@
+--[[
+    ================================================================
+    GT_WIBUVN ADVANCED UTILITY MENU (CUSTOM UNIQUE ICONS)
+    Author: GT_WIBUVN
+    Platform: Roblox Studio (PC & Mobile Support)
+    ================================================================
+--]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Stats = game:GetService("Stats")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+--------------------------------------------------------------------------------
+-- 1. CLEANUP PREVIOUS GUI
+--------------------------------------------------------------------------------
+local GUI_NAME = "GT_WIBUVN_UltimateMenu"
+
+local function FullyCleanupExistingGUI()
+	local existing = CoreGui:FindFirstChild(GUI_NAME)
+	if existing then
+		if existing:FindFirstChild("CleanupEvent") then
+			existing.CleanupEvent:Fire()
+		end
+		existing:Destroy()
+	end
+end
+
+FullyCleanupExistingGUI()
+
+--------------------------------------------------------------------------------
+-- 2. LOCALIZATION SYSTEM
+--------------------------------------------------------------------------------
+local Languages = {
+	["vi"] = {
+		Name = "Tiếng Việt",
+		Title = "GT_WIBUVN MENU",
+		Credit = "Tác giả: GT_WIBUVN",
+		ConfirmDestroyTitle = "Xác nhận xóa GUI",
+		ConfirmDestroyDesc = "Bạn có chắc chắn muốn xóa hoàn toàn GUI và tắt tất cả tính năng không?",
+		Yes = "Đúng",
+		No = "Không",
+		SpeedValue = "Tốc độ: ",
+		JumpValue = "Độ cao nhảy: ",
+		FixLag = {Name = "Giảm Lag", Desc = "Tối ưu hóa đồ họa, giảm lag tối đa."},
+		Fly = {Name = "Bay", Desc = "Cho phép nhân vật bay trên không trung."},
+		InfJump = {Name = "Nhảy Vô Hạn", Desc = "Nhảy vô hạn trên không không giới hạn."},
+		JumpBoost = {Name = "Tăng Nhảy", Desc = "Tăng sức mạnh độ cao khi nhảy."},
+		SpeedBoost = {Name = "Tăng Tốc Độ Chạy", Desc = "Tăng tốc độ di chuyển nhân vật."},
+		FlyCam = {Name = "FlyCam", Desc = "Tách Camera tự do di chuyển khắp bản đồ."},
+		Fullbright = {Name = "Thấp Sáng", Desc = "Làm sáng toàn bộ bản đồ, xóa bóng tối."},
+		Noclip = {Name = "Đi Xuyên", Desc = "Đi xuyên qua tất cả các vật thể vật lý."},
+		LanguageBtn = "Ngôn ngữ / Language"
+	},
+	["en"] = {
+		Name = "English",
+		Title = "GT_WIBUVN MENU",
+		Credit = "Credit: GT_WIBUVN",
+		ConfirmDestroyTitle = "Confirm Destroy",
+		ConfirmDestroyDesc = "Are you sure you want to completely destroy the GUI and disable all features?",
+		Yes = "Yes",
+		No = "No",
+		SpeedValue = "Speed: ",
+		JumpValue = "Jump Height: ",
+		FixLag = {Name = "Fix Lag", Desc = "Optimize graphics for maximum performance."},
+		Fly = {Name = "Fly", Desc = "Allows your character to fly freely."},
+		InfJump = {Name = "Inf Jump", Desc = "Jump infinitely in mid-air."},
+		JumpBoost = {Name = "Jump Boost", Desc = "Increase jump power altitude."},
+		SpeedBoost = {Name = "Speed Boost", Desc = "Boost walk speed significantly."},
+		FlyCam = {Name = "FlyCam", Desc = "Detach camera for free-roam viewing."},
+		Fullbright = {Name = "Fulbright", Desc = "Remove shadows and make world bright."},
+		Noclip = {Name = "Noclip", Desc = "Walk through solid objects and walls."},
+		LanguageBtn = "Language / Ngôn ngữ"
+	},
+	["es"] = {
+		Name = "Español",
+		Title = "GT_WIBUVN MENU",
+		Credit = "Crédito: GT_WIBUVN",
+		ConfirmDestroyTitle = "Confirmar eliminación",
+		ConfirmDestroyDesc = "¿Estás seguro de que deseas eliminar la GUI y desactivar todo?",
+		Yes = "Sí",
+		No = "No",
+		SpeedValue = "Velocidad: ",
+		JumpValue = "Salto: ",
+		FixLag = {Name = "Fix Lag", Desc = "Optimizar gráficos para reducir el lag."},
+		Fly = {Name = "Fly", Desc = "Permite a tu personaje volar."},
+		InfJump = {Name = "Inf Jump", Desc = "Salto infinito en el aire."},
+		JumpBoost = {Name = "Jump Boost", Desc = "Aumenta la fuerza de salto."},
+		SpeedBoost = {Name = "Speed Boost", Desc = "Aumenta la velocidad de movimiento."},
+		FlyCam = {Name = "FlyCam", Desc = "Cámara libre por todo el mapa."},
+		Fullbright = {Name = "Fulbright", Desc = "Ilumina todo el mapa."},
+		Noclip = {Name = "Noclip", Desc = "Atraviesa objetos sólidos."},
+		LanguageBtn = "Idioma"
+	},
+	["pt"] = {
+		Name = "Português",
+		Title = "GT_WIBUVN MENU",
+		Credit = "Crédito: GT_WIBUVN",
+		ConfirmDestroyTitle = "Confirmar Eliminação",
+		ConfirmDestroyDesc = "Tem certeza de que deseja destruir a GUI e desativar tudo?",
+		Yes = "Sim",
+		No = "Não",
+		SpeedValue = "Velocidade: ",
+		JumpValue = "Pulo: ",
+		FixLag = {Name = "Fix Lag", Desc = "Otimizar gráficos para reduzir lag."},
+		Fly = {Name = "Fly", Desc = "Permite que seu personagem voe."},
+		InfJump = {Name = "Inf Jump", Desc = "Pulo infinito no ar."},
+		JumpBoost = {Name = "Jump Boost", Desc = "Aumenta a altura do pulo."},
+		SpeedBoost = {Name = "Speed Boost", Desc = "Aumenta a velocidade."},
+		FlyCam = {Name = "FlyCam", Desc = "Câmera livre pelo mapa."},
+		Fullbright = {Name = "Fulbright", Desc = "Remove sombras e ilumina o mundo."},
+		Noclip = {Name = "Noclip", Desc = "Atravesse paredes e objetos."},
+		LanguageBtn = "Idioma"
+	},
+	["ru"] = {
+		Name = "Русский",
+		Title = "GT_WIBUVN MENU",
+		Credit = "Автор: GT_WIBUVN",
+		ConfirmDestroyTitle = "Подтвердите удаление",
+		ConfirmDestroyDesc = "Вы уверены, что хотите полностью удалить GUI и отключить все функции?",
+		Yes = "Да",
+		No = "Нет",
+		SpeedValue = "Скорость: ",
+		JumpValue = "Высота прыжка: ",
+		FixLag = {Name = "Fix Lag", Desc = "Оптимизация графики для ускорения."},
+		Fly = {Name = "Fly", Desc = "Позволяет персонажу летать."},
+		InfJump = {Name = "Inf Jump", Desc = "Бесконечные прыжки в воздухе."},
+		JumpBoost = {Name = "Jump Boost", Desc = "Увеличение силы прыжка."},
+		SpeedBoost = {Name = "Speed Boost", Desc = "Увеличение скорости ходьбы."},
+		FlyCam = {Name = "FlyCam", Desc = "Свободная летающая камера."},
+		Fullbright = {Name = "Fulbright", Desc = "Максимальная яркость без теней."},
+		Noclip = {Name = "Noclip", Desc = "Проход сквозь стены и объекты."},
+		LanguageBtn = "Язык"
+	},
+	["zh"] = {
+		Name = "中文",
+		Title = "GT_WIBUVN 菜單",
+		Credit = "作者: GT_WIBUVN",
+		ConfirmDestroyTitle = "確認刪除",
+		ConfirmDestroyDesc = "您確定要完全刪除 GUI 並關閉所有功能嗎？",
+		Yes = "確定",
+		No = "取消",
+		SpeedValue = "速度: ",
+		JumpValue = "跳躍高度: ",
+		FixLag = {Name = "Fix Lag", Desc = "優化畫質，提升流暢度。"},
+		Fly = {Name = "Fly", Desc = "讓角色自由飛行。"},
+		InfJump = {Name = "Inf Jump", Desc = "空中無限跳躍。"},
+		JumpBoost = {Name = "Jump Boost", Desc = "增強跳躍高度。"},
+		SpeedBoost = {Name = "Speed Boost", Desc = "大幅提升移動速度。"},
+		FlyCam = {Name = "FlyCam", Desc = "自由觀察地圖的飛行相機。"},
+		Fullbright = {Name = "Fulbright", Desc = "提亮地圖，消除陰影。"},
+		Noclip = {Name = "Noclip", Desc = "穿透所有牆壁與物體。"},
+		LanguageBtn = "語言 / Language"
+	}
+}
+
+local CurrentLangKey = "vi"
+local LangList = {"vi", "en", "es", "pt", "ru", "zh"}
+
+--------------------------------------------------------------------------------
+-- 3. STATE MANAGEMENT
+--------------------------------------------------------------------------------
+local FeatureStates = {
+	Fly = false,
+	InfJump = false,
+	JumpBoost = false,
+	SpeedBoost = false,
+	FlyCam = false,
+	Fulbright = false,
+	Noclip = false
+}
+
+local Config = {
+	SpeedMultiplier = 50,
+	JumpMultiplier = 120
+}
+
+local Connections = {}
+local CleanupBindable = Instance.new("BindableEvent")
+CleanupBindable.Name = "CleanupEvent"
+
+--------------------------------------------------------------------------------
+-- 4. UTILITIES
+--------------------------------------------------------------------------------
+local function MakeDraggable(guiObject, handleObject)
+	handleObject = handleObject or guiObject
+	local dragging, dragInput, dragStart, startPos
+
+	local function update(input)
+		local delta = input.Position - dragStart
+		guiObject.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+
+	handleObject.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = guiObject.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	handleObject.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			update(input)
+		end
+	end)
+end
+
+--------------------------------------------------------------------------------
+-- 5. GUI BASE
+--------------------------------------------------------------------------------
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
+
+CleanupBindable.Parent = ScreenGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 360, 0, 480)
+MainFrame.Position = UDim2.new(0.5, -180, 0.5, -240)
+MainFrame.BackgroundColor3 = Color3.fromRGB(22, 24, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+local MainUICorner = Instance.new("UICorner")
+MainUICorner.CornerRadius = UDim.new(0, 12)
+MainUICorner.Parent = MainFrame
+
+local MainUIStroke = Instance.new("UIStroke")
+MainUIStroke.Color = Color3.fromRGB(45, 50, 65)
+MainUIStroke.Thickness = 2
+MainUIStroke.Parent = MainFrame
+
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 45)
+TopBar.BackgroundColor3 = Color3.fromRGB(30, 34, 45)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local TopBarCorner = Instance.new("UICorner")
+TopBarCorner.CornerRadius = UDim.new(0, 12)
+TopBarCorner.Parent = TopBar
+
+MakeDraggable(MainFrame, TopBar)
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -90, 0.5, 0)
+TitleLabel.Position = UDim2.new(0, 12, 0, 4)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Text = Languages[CurrentLangKey].Title
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 14
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Parent = TopBar
+
+local CreditLabel = Instance.new("TextLabel")
+CreditLabel.Size = UDim2.new(1, -90, 0.5, 0)
+CreditLabel.Position = UDim2.new(0, 12, 0.5, -2)
+CreditLabel.Font = Enum.Font.Gotham
+CreditLabel.Text = Languages[CurrentLangKey].Credit
+CreditLabel.TextColor3 = Color3.fromRGB(0, 200, 255)
+CreditLabel.TextSize = 11
+CreditLabel.TextXAlignment = Enum.TextXAlignment.Left
+CreditLabel.BackgroundTransparency = 1
+CreditLabel.Parent = TopBar
+
+local StatsFrame = Instance.new("Frame")
+StatsFrame.Size = UDim2.new(1, -24, 0, 25)
+StatsFrame.Position = UDim2.new(0, 12, 0, 50)
+StatsFrame.BackgroundColor3 = Color3.fromRGB(15, 17, 22)
+StatsFrame.BorderSizePixel = 0
+StatsFrame.Parent = MainFrame
+
+local StatsCorner = Instance.new("UICorner")
+StatsCorner.CornerRadius = UDim.new(0, 6)
+StatsCorner.Parent = StatsFrame
+
+local StatsLabel = Instance.new("TextLabel")
+StatsLabel.Size = UDim2.new(1, -120, 1, 0)
+StatsLabel.Position = UDim2.new(0, 8, 0, 0)
+StatsLabel.Font = Enum.Font.Code
+StatsLabel.Text = "FPS: -- | Ping: --ms"
+StatsLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+StatsLabel.TextSize = 11
+StatsLabel.BackgroundTransparency = 1
+StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatsLabel.Parent = StatsFrame
+
+local LangButton = Instance.new("TextButton")
+LangButton.Size = UDim2.new(0, 100, 0, 19)
+LangButton.Position = UDim2.new(1, -105, 0, 3)
+LangButton.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+LangButton.Font = Enum.Font.GothamMedium
+LangButton.Text = "🌐 " .. Languages[CurrentLangKey].Name
+LangButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+LangButton.TextSize = 10
+LangButton.Parent = StatsFrame
+
+local LangCorner = Instance.new("UICorner")
+LangCorner.CornerRadius = UDim.new(0, 4)
+LangCorner.Parent = LangButton
+
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+MinimizeBtn.Position = UDim2.new(1, -70, 0, 7.5)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.TextSize = 18
+MinimizeBtn.Parent = TopBar
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinimizeBtn
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 7.5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Text = "✕"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Parent = TopBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseBtn
+
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Size = UDim2.new(1, -24, 1, -90)
+ScrollingFrame.Position = UDim2.new(0, 12, 0, 80)
+ScrollingFrame.BackgroundTransparency = 1
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.ScrollBarThickness = 4
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.Parent = ScrollingFrame
+
+UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 10)
+end)
+
+--------------------------------------------------------------------------------
+-- 6. TOGGLE BUTTON & DIALOG
+--------------------------------------------------------------------------------
+local ToggleGuiBtn = Instance.new("ImageButton")
+ToggleGuiBtn.Name = "ToggleGuiBtn"
+ToggleGuiBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleGuiBtn.Position = UDim2.new(0.05, 0, 0.2, 0)
+ToggleGuiBtn.BackgroundColor3 = Color3.fromRGB(30, 34, 45)
+ToggleGuiBtn.Image = "rbxassetid://6031086121" -- Custom Menu Icon
+ToggleGuiBtn.Parent = ScreenGui
+
+local ToggleBtnCorner = Instance.new("UICorner")
+ToggleBtnCorner.CornerRadius = UDim.new(0, 25)
+ToggleBtnCorner.Parent = ToggleGuiBtn
+
+MakeDraggable(ToggleGuiBtn)
+
+ToggleGuiBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = false
+end)
+
+local ConfirmOverlay = Instance.new("Frame")
+ConfirmOverlay.Size = UDim2.new(1, 0, 1, 0)
+ConfirmOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ConfirmOverlay.BackgroundTransparency = 0.6
+ConfirmOverlay.Visible = false
+ConfirmOverlay.ZIndex = 10
+ConfirmOverlay.Parent = MainFrame
+
+local ConfirmBox = Instance.new("Frame")
+ConfirmBox.Size = UDim2.new(0, 280, 0, 150)
+ConfirmBox.Position = UDim2.new(0.5, -140, 0.5, -75)
+ConfirmBox.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
+ConfirmBox.ZIndex = 11
+ConfirmBox.Parent = ConfirmOverlay
+
+local ConfirmCorner = Instance.new("UICorner")
+ConfirmCorner.CornerRadius = UDim.new(0, 10)
+ConfirmCorner.Parent = ConfirmBox
+
+local ConfirmTitle = Instance.new("TextLabel")
+ConfirmTitle.Size = UDim2.new(1, -20, 0, 30)
+ConfirmTitle.Position = UDim2.new(0, 10, 0, 10)
+ConfirmTitle.Font = Enum.Font.GothamBold
+ConfirmTitle.Text = Languages[CurrentLangKey].ConfirmDestroyTitle
+ConfirmTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+ConfirmTitle.TextSize = 14
+ConfirmTitle.BackgroundTransparency = 1
+ConfirmTitle.ZIndex = 12
+ConfirmTitle.Parent = ConfirmBox
+
+local ConfirmDesc = Instance.new("TextLabel")
+ConfirmDesc.Size = UDim2.new(1, -20, 0, 45)
+ConfirmDesc.Position = UDim2.new(0, 10, 0, 40)
+ConfirmDesc.Font = Enum.Font.Gotham
+ConfirmDesc.Text = Languages[CurrentLangKey].ConfirmDestroyDesc
+ConfirmDesc.TextColor3 = Color3.fromRGB(200, 200, 200)
+ConfirmDesc.TextSize = 11
+ConfirmDesc.TextWrapped = true
+ConfirmDesc.BackgroundTransparency = 1
+ConfirmDesc.ZIndex = 12
+ConfirmDesc.Parent = ConfirmBox
+
+local YesBtn = Instance.new("TextButton")
+YesBtn.Size = UDim2.new(0, 110, 0, 32)
+YesBtn.Position = UDim2.new(0, 20, 1, -42)
+YesBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+YesBtn.Font = Enum.Font.GothamBold
+YesBtn.Text = Languages[CurrentLangKey].Yes
+YesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+YesBtn.TextSize = 12
+YesBtn.ZIndex = 12
+YesBtn.Parent = ConfirmBox
+
+local YesCorner = Instance.new("UICorner")
+YesCorner.CornerRadius = UDim.new(0, 6)
+YesCorner.Parent = YesBtn
+
+local NoBtn = Instance.new("TextButton")
+NoBtn.Size = UDim2.new(0, 110, 0, 32)
+NoBtn.Position = UDim2.new(1, -130, 1, -42)
+NoBtn.BackgroundColor3 = Color3.fromRGB(60, 65, 80)
+NoBtn.Font = Enum.Font.GothamBold
+NoBtn.Text = Languages[CurrentLangKey].No
+NoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+NoBtn.TextSize = 12
+NoBtn.ZIndex = 12
+NoBtn.Parent = ConfirmBox
+
+local NoCorner = Instance.new("UICorner")
+NoCorner.CornerRadius = UDim.new(0, 6)
+NoCorner.Parent = NoBtn
+
+CloseBtn.MouseButton1Click:Connect(function() ConfirmOverlay.Visible = true end)
+NoBtn.MouseButton1Click:Connect(function() ConfirmOverlay.Visible = false end)
+YesBtn.MouseButton1Click:Connect(function() FullyCleanupExistingGUI() end)
+
+--------------------------------------------------------------------------------
+-- 7. CORE FEATURE ENGINE
+--------------------------------------------------------------------------------
+
+-- FPS & Ping System
+local lastTick = tick()
+local frameCounter = 0
+
+Connections["StatsSystem"] = RunService.RenderStepped:Connect(function()
+	frameCounter = frameCounter + 1
+	local currentTick = tick()
+
+	if currentTick - lastTick >= 1 then
+		local fps = math.floor(frameCounter / (currentTick - lastTick))
+		local ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+
+		StatsLabel.Text = string.format("FPS: %d | Ping: %dms", fps, ping)
+		frameCounter = 0
+		lastTick = currentTick
+	end
+end)
+
+-- FlyCam System
+local flyCamConnection = nil
+local flyCamCFrame = Workspace.CurrentCamera.CFrame
+
+local function StartFlyCam()
+	local camera = Workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Scriptable
+	flyCamCFrame = camera.CFrame
+
+	flyCamConnection = RunService.RenderStepped:Connect(function(dt)
+		if not FeatureStates.FlyCam then return end
+		local moveSpeed = 50 * dt
+		local moveVector = Vector3.new()
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVector = moveVector + flyCamCFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVector = moveVector - flyCamCFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVector = moveVector - flyCamCFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVector = moveVector + flyCamCFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.E) then moveVector = moveVector + Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Q) then moveVector = moveVector - Vector3.new(0, 1, 0) end
+
+		flyCamCFrame = flyCamCFrame + (moveVector * moveSpeed)
+		camera.CFrame = flyCamCFrame
+	end)
+	Connections["FlyCamConn"] = flyCamConnection
+end
+
+local function StopFlyCam()
+	if flyCamConnection then flyCamConnection:Disconnect() end
+	local camera = Workspace.CurrentCamera
+	camera.CameraType = Enum.CameraType.Custom
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+		camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+	end
+end
+
+-- Fly Function
+local function StartFly()
+	local char = LocalPlayer.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+	local hrp = char.HumanoidRootPart
+
+	local bv = Instance.new("BodyVelocity")
+	bv.Name = "GT_FlyBV"
+	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bv.Velocity = Vector3.new(0, 0, 0)
+	bv.Parent = hrp
+
+	Connections["FlyLoop"] = RunService.RenderStepped:Connect(function()
+		if not FeatureStates.Fly or not char:FindFirstChild("HumanoidRootPart") then
+			bv:Destroy()
+			if Connections["FlyLoop"] then Connections["FlyLoop"]:Disconnect() end
+			return
+		end
+		local cam = Workspace.CurrentCamera
+		local moveDir = Vector3.new()
+
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - cam.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - cam.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + cam.CFrame.RightVector end
+
+		bv.Velocity = moveDir * Config.SpeedMultiplier
+	end)
+end
+
+local function StopFly()
+	if Connections["FlyLoop"] then Connections["FlyLoop"]:Disconnect() end
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+		local hrp = LocalPlayer.Character.HumanoidRootPart
+		if hrp:FindFirstChild("GT_FlyBV") then hrp.GT_FlyBV:Destroy() end
+	end
+end
+
+-- Fix Lag Function
+local function ToggleFixLag()
+	for _, v in pairs(Workspace:GetDescendants()) do
+		if v:IsA("BasePart") then
+			v.Material = Enum.Material.SmoothPlastic
+		elseif v:IsA("Decal") or v:IsA("Texture") then
+			v:Destroy()
+		elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+			v.Enabled = false
+		end
+	end
+	Lighting.GlobalShadows = false
+end
+
+-- Speed & Jump Loops Fix
+Connections["StatModifier"] = RunService.RenderStepped:Connect(function()
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+
+		if FeatureStates.SpeedBoost then
+			hum.WalkSpeed = Config.SpeedMultiplier
+		end
+
+		if FeatureStates.JumpBoost then
+			hum.UseJumpPower = true
+			hum.JumpPower = Config.JumpMultiplier
+		end
+	end
+end)
+
+-- Noclip & InfJump
+Connections["NoclipLoop"] = RunService.Stepped:Connect(function()
+	if FeatureStates.Noclip and LocalPlayer.Character then
+		for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+			if part:IsA("BasePart") then part.CanCollide = false end
+		end
+	end
+end)
+
+Connections["InfJump"] = UserInputService.JumpRequest:Connect(function()
+	if FeatureStates.InfJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+		LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+end)
+
+-- Fulbright Loop
+Connections["FulbrightLoop"] = RunService.RenderStepped:Connect(function()
+	if FeatureStates.Fullbright then
+		Lighting.Brightness = 2
+		Lighting.ClockTime = 14
+		Lighting.GlobalShadows = false
+		Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+	end
+end)
+
+-- Cleanup Handler
+CleanupBindable.Event:Connect(function()
+	for _, conn in pairs(Connections) do
+		if typeof(conn) == "RBXScriptConnection" and conn.Connected then
+			conn:Disconnect()
+		end
+	end
+	table.clear(Connections)
+
+	StopFlyCam()
+	StopFly()
+
+	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		hum.WalkSpeed = 16
+		hum.JumpPower = 50
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- 8. UI BUILDER WITH UNIQUE ICONS
+--------------------------------------------------------------------------------
+local FeatureElements = {}
+
+local function CreateFeatureRow(key, iconId, isActionOnly)
+	local langData = Languages[CurrentLangKey][key]
+
+	local Card = Instance.new("Frame")
+	Card.Size = UDim2.new(1, 0, 0, 60)
+	Card.BackgroundColor3 = Color3.fromRGB(28, 32, 42)
+	Card.BorderSizePixel = 0
+	Card.Parent = ScrollingFrame
+
+	local CardCorner = Instance.new("UICorner")
+	CardCorner.CornerRadius = UDim.new(0, 8)
+	CardCorner.Parent = Card
+
+	local Icon = Instance.new("ImageLabel")
+	Icon.Size = UDim2.new(0, 26, 0, 26)
+	Icon.Position = UDim2.new(0, 10, 0, 12)
+	Icon.BackgroundTransparency = 1
+	Icon.Image = iconId
+	Icon.ImageColor3 = Color3.fromRGB(0, 200, 255)
+	Icon.Parent = Card
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(0.5, 0, 0, 20)
+	Title.Position = UDim2.new(0, 44, 0, 8)
+	Title.Font = Enum.Font.GothamBold
+	Title.Text = langData.Name
+	Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+	Title.TextSize = 13
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	Title.BackgroundTransparency = 1
+	Title.Parent = Card
+
+	local Desc = Instance.new("TextLabel")
+	Desc.Size = UDim2.new(0.6, 0, 0, 24)
+	Desc.Position = UDim2.new(0, 44, 0, 28)
+	Desc.Font = Enum.Font.Gotham
+	Desc.Text = langData.Desc
+	Desc.TextColor3 = Color3.fromRGB(150, 150, 160)
+	Desc.TextSize = 10
+	Desc.TextXAlignment = Enum.TextXAlignment.Left
+	Desc.TextWrapped = true
+	Desc.BackgroundTransparency = 1
+	Desc.Parent = Card
+
+	FeatureElements[key] = {Title = Title, Desc = Desc}
+
+	if isActionOnly then
+		local ActionBtn = Instance.new("TextButton")
+		ActionBtn.Size = UDim2.new(0, 70, 0, 28)
+		ActionBtn.Position = UDim2.new(1, -80, 0, 16)
+		ActionBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 220)
+		ActionBtn.Font = Enum.Font.GothamBold
+		ActionBtn.Text = "RUN"
+		ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		ActionBtn.TextSize = 11
+		ActionBtn.Parent = Card
+
+		local ActionCorner = Instance.new("UICorner")
+		ActionCorner.CornerRadius = UDim.new(0, 6)
+		ActionCorner.Parent = ActionBtn
+
+		ActionBtn.MouseButton1Click:Connect(function()
+			if key == "FixLag" then ToggleFixLag() end
+			ActionBtn.Text = "DONE!"
+			task.wait(1)
+			ActionBtn.Text = "RUN"
+		end)
+	else
+		local ToggleBtn = Instance.new("TextButton")
+		ToggleBtn.Size = UDim2.new(0, 65, 0, 28)
+		ToggleBtn.Position = UDim2.new(1, -75, 0, 16)
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+		ToggleBtn.Font = Enum.Font.GothamBold
+		ToggleBtn.Text = "OFF"
+		ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		ToggleBtn.TextSize = 11
+		ToggleBtn.Parent = Card
+
+		local ToggleCorner = Instance.new("UICorner")
+		ToggleCorner.CornerRadius = UDim.new(0, 6)
+		ToggleCorner.Parent = ToggleBtn
+
+		local SliderFrame = nil
+		local SliderLabel = nil
+
+		if key == "SpeedBoost" or key == "JumpBoost" then
+			SliderFrame = Instance.new("Frame")
+			SliderFrame.Size = UDim2.new(1, -20, 0, 35)
+			SliderFrame.Position = UDim2.new(0, 10, 0, 58)
+			SliderFrame.BackgroundTransparency = 1
+			SliderFrame.Visible = false
+			SliderFrame.Parent = Card
+
+			SliderLabel = Instance.new("TextLabel")
+			SliderLabel.Size = UDim2.new(1, 0, 0, 15)
+			SliderLabel.Font = Enum.Font.GothamMedium
+			SliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			SliderLabel.TextSize = 10
+			SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+			SliderLabel.BackgroundTransparency = 1
+			SliderLabel.Parent = SliderFrame
+
+			local SliderBar = Instance.new("Frame")
+			SliderBar.Size = UDim2.new(1, 0, 0, 8)
+			SliderBar.Position = UDim2.new(0, 0, 0, 20)
+			SliderBar.BackgroundColor3 = Color3.fromRGB(45, 50, 65)
+			SliderBar.BorderSizePixel = 0
+			SliderBar.Parent = SliderFrame
+
+			local SliderFill = Instance.new("Frame")
+			SliderFill.Size = UDim2.new(0.3, 0, 1, 0)
+			SliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+			SliderFill.BorderSizePixel = 0
+			SliderFill.Parent = SliderBar
+
+			local function UpdateSlider(input)
+				local pos = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+				SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+
+				if key == "SpeedBoost" then
+					Config.SpeedMultiplier = math.floor(16 + (pos * 184))
+					SliderLabel.Text = Languages[CurrentLangKey].SpeedValue .. tostring(Config.SpeedMultiplier)
+				elseif key == "JumpBoost" then
+					Config.JumpMultiplier = math.floor(50 + (pos * 250))
+					SliderLabel.Text = Languages[CurrentLangKey].JumpValue .. tostring(Config.JumpMultiplier)
+				end
+			end
+
+			local isDragging = false
+			SliderBar.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					isDragging = true
+					UpdateSlider(input)
+				end
+			end)
+			UserInputService.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					isDragging = false
+				end
+			end)
+			UserInputService.InputChanged:Connect(function(input)
+				if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+					UpdateSlider(input)
+				end
+			end)
+
+			if key == "SpeedBoost" then
+				SliderLabel.Text = Languages[CurrentLangKey].SpeedValue .. tostring(Config.SpeedMultiplier)
+			else
+				SliderLabel.Text = Languages[CurrentLangKey].JumpValue .. tostring(Config.JumpMultiplier)
+			end
+			FeatureElements[key].SliderLabel = SliderLabel
+		end
+
+		ToggleBtn.MouseButton1Click:Connect(function()
+			FeatureStates[key] = not FeatureStates[key]
+			local state = FeatureStates[key]
+
+			if state then
+				ToggleBtn.Text = "ON"
+				ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 180, 70)
+				if SliderFrame then
+					Card.Size = UDim2.new(1, 0, 0, 100)
+					SliderFrame.Visible = true
+				end
+				if key == "Fly" then StartFly() end
+				if key == "FlyCam" then StartFlyCam() end
+			else
+				ToggleBtn.Text = "OFF"
+				ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+				if SliderFrame then
+					Card.Size = UDim2.new(1, 0, 0, 60)
+					SliderFrame.Visible = false
+				end
+				if key == "Fly" then StopFly() end
+				if key == "FlyCam" then StopFlyCam() end
+				if key == "SpeedBoost" and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+					LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
+				end
+				if key == "JumpBoost" and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+					LocalPlayer.Character:FindFirstChildOfClass("Humanoid").JumpPower = 50
+				end
+			end
+		end)
+	end
+end
+
+--------------------------------------------------------------------------------
+-- 9. INITIALIZE WITH UNIQUE ICONS
+--------------------------------------------------------------------------------
+CreateFeatureRow("FixLag", "rbxassetid://6034509993", true)       -- Icon Tia Sét
+CreateFeatureRow("Fly", "rbxassetid://6034287594", false)          -- Icon Đôi Cánh / Bay
+CreateFeatureRow("InfJump", "rbxassetid://6031091004", false)      -- Icon Mũi Tên Nhảy Up
+CreateFeatureRow("JumpBoost", "rbxassetid://6034287525", false)    -- Icon Tên Lửa / Jump Boost
+CreateFeatureRow("SpeedBoost", "rbxassetid://6034287515", false)   -- Icon Chạy Tốc Độ / Step
+CreateFeatureRow("FlyCam", "rbxassetid://6031068426", false)       -- Icon Máy Ảnh / Camera
+CreateFeatureRow("Fullbright", "rbxassetid://6031075931", false)    -- Icon Mặt Trời / Brightness
+CreateFeatureRow("Noclip", "rbxassetid://6031071050", false)       -- Icon Con Ma / Đi Xuyên Tường
+
+LangButton.MouseButton1Click:Connect(function()
+	local currentIndex = table.find(LangList, CurrentLangKey) or 1
+	CurrentLangKey = LangList[(currentIndex % #LangList) + 1]
+	local lang = Languages[CurrentLangKey]
+
+	TitleLabel.Text = lang.Title
+	CreditLabel.Text = lang.Credit
+	ConfirmTitle.Text = lang.ConfirmDestroyTitle
+	ConfirmDesc.Text = lang.ConfirmDestroyDesc
+	YesBtn.Text = lang.Yes
+	NoBtn.Text = lang.No
+	LangButton.Text = "🌐 " .. lang.Name
+
+	for k, v in pairs(FeatureElements) do
+		if lang[k] then
+			v.Title.Text = lang[k].Name
+			v.Desc.Text = lang[k].Desc
+		end
+		if v.SliderLabel then
+			if k == "SpeedBoost" then
+				v.SliderLabel.Text = lang.SpeedValue .. tostring(Config.SpeedMultiplier)
+			elseif k == "JumpBoost" then
+				v.SliderLabel.Text = lang.JumpValue .. tostring(Config.JumpMultiplier)
+			end
+		end
+	end
+end)
