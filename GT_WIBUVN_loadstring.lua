@@ -172,7 +172,7 @@ local Languages = {
 		JumpValue = "Lực nhảy",
 		FlyValue = "Tốc độ Fly",
 
-		Monitor = "MONITOR",
+		Monitor = "Hiệu Năng",
 		FPSLabel = "FPS",
 		PingLabel = "Ping",
 
