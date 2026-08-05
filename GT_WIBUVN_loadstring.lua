@@ -37,8 +37,6 @@ local LocalPlayer = Players.LocalPlayer
 -- CONFIG
 ----------------------------------------------------------------
 
-local GUI_NAME = "GT_WIBUVN_Menu"
-
 local DEFAULT_WALK_SPEED = 16
 local DEFAULT_JUMP_POWER = 50
 local DEFAULT_FLY_SPEED = 60
@@ -56,14 +54,10 @@ local MAX_FLY = 200
 -- REMOVE OLD GUI
 ----------------------------------------------------------------
 
-local OldGui = game:GetService("CoreGui"):FindFirstChild(GUI_NAME)
-
-if OldGui then
-	pcall(function()
-		OldGui:Destroy()
-	end)
+local oldGui = game:GetService("CoreGui"):FindFirstChild("GT_WIBUVN_Menu")
+if oldGui then
+	oldGui:Destroy()
 end
-
 ----------------------------------------------------------------
 -- STATE
 ----------------------------------------------------------------
@@ -1002,7 +996,7 @@ end
 ----------------------------------------------------------------
 
 local ScreenGui = Create("ScreenGui", {
-	Name = GUI_NAME,
+	Name = "GT_WIBUVN_Menu",
 	ResetOnSpawn = false,
 	IgnoreGuiInset = true,
 	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
