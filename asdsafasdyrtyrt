@@ -1,0 +1,650 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+local GUI_NAME = "SafePlayerFollowGUI"
+local DEFAULT_SPEED = 150
+local MIN_SPEED = 50
+local MAX_SPEED = 350
+
+local FOLLOW_DISTANCE = 4
+local FOLLOW_HEIGHT = 4
+local ARRIVE_DISTANCE = 2
+local UPDATE_RATE = 0.03
+
+if CoreGui:FindFirstChild(GUI_NAME) then
+	CoreGui[GUI_NAME]:Destroy()
+end
+
+local SelectedPlayer = nil
+local FollowEnabled = false
+local FlySpeed = DEFAULT_SPEED
+local FollowingConnection = nil
+
+local FlyAttachment = nil
+local FlyVelocity = nil
+local FlyOrientation = nil
+
+local OriginalCanCollide = {}
+local NoclipConnection = nil
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 420, 0, 520)
+Main.Position = UDim2.new(0.5, -210, 0.5, -260)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -50, 0, 45)
+Title.Position = UDim2.new(0, 15, 0, 5)
+Title.BackgroundTransparency = 1
+Title.Text = "PLAYER FOLLOW"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 21
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+
+local Close = Instance.new("TextButton")
+Close.Name = "Close"
+Close.Size = UDim2.new(0, 35, 0, 35)
+Close.Position = UDim2.new(1, -42, 0, 10)
+Close.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+Close.Text = "X"
+Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+Close.TextSize = 17
+Close.Font = Enum.Font.GothamBold
+Close.Parent = Main
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = Close
+
+local SelectedLabel = Instance.new("TextLabel")
+SelectedLabel.Name = "SelectedPlayer"
+SelectedLabel.Size = UDim2.new(1, -30, 0, 35)
+SelectedLabel.Position = UDim2.new(0, 15, 0, 50)
+SelectedLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+SelectedLabel.Text = "Selected: None"
+SelectedLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+SelectedLabel.TextSize = 15
+SelectedLabel.Font = Enum.Font.Gotham
+SelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SelectedLabel.Parent = Main
+
+local SelectedPadding = Instance.new("UIPadding")
+SelectedPadding.PaddingLeft = UDim.new(0, 12)
+SelectedPadding.Parent = SelectedLabel
+
+local SelectedCorner = Instance.new("UICorner")
+SelectedCorner.CornerRadius = UDim.new(0, 8)
+SelectedCorner.Parent = SelectedLabel
+
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Name = "PlayerList"
+ScrollingFrame.Size = UDim2.new(1, -30, 0, 285)
+ScrollingFrame.Position = UDim2.new(0, 15, 0, 95)
+ScrollingFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.ScrollBarThickness = 6
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollingFrame.Parent = Main
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+ScrollCorner.Parent = ScrollingFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 6)
+ListLayout.SortOrder = Enum.SortOrder.Name
+ListLayout.Parent = ScrollingFrame
+
+local ListPadding = Instance.new("UIPadding")
+ListPadding.PaddingTop = UDim.new(0, 6)
+ListPadding.PaddingBottom = UDim.new(0, 6)
+ListPadding.PaddingLeft = UDim.new(0, 6)
+ListPadding.PaddingRight = UDim.new(0, 6)
+ListPadding.Parent = ScrollingFrame
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Name = "SpeedLabel"
+SpeedLabel.Size = UDim2.new(0, 100, 0, 32)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 390)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Speed:"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextSize = 15
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Parent = Main
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Name = "SpeedInput"
+SpeedBox.Size = UDim2.new(0, 100, 0, 32)
+SpeedBox.Position = UDim2.new(0, 90, 0, 390)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+SpeedBox.Text = tostring(DEFAULT_SPEED)
+SpeedBox.PlaceholderText = "50 - 350"
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.TextSize = 14
+SpeedBox.Font = Enum.Font.Gotham
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.Parent = Main
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 7)
+SpeedCorner.Parent = SpeedBox
+
+SpeedBox.FocusLost:Connect(function()
+	local Number = tonumber(SpeedBox.Text)
+	if not Number then
+		Number = DEFAULT_SPEED
+	end
+	Number = math.clamp(Number, MIN_SPEED, MAX_SPEED)
+	FlySpeed = Number
+	SpeedBox.Text = tostring(Number)
+end)
+
+local FollowButton = Instance.new("TextButton")
+FollowButton.Name = "FollowButton"
+FollowButton.Size = UDim2.new(0, 180, 0, 40)
+FollowButton.Position = UDim2.new(1, -195, 0, 386)
+FollowButton.BackgroundColor3 = Color3.fromRGB(55, 120, 220)
+FollowButton.Text = "FOLLOW"
+FollowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FollowButton.TextSize = 16
+FollowButton.Font = Enum.Font.GothamBold
+FollowButton.Parent = Main
+
+local FollowCorner = Instance.new("UICorner")
+FollowCorner.CornerRadius = UDim.new(0, 8)
+FollowCorner.Parent = FollowButton
+
+local Status = Instance.new("TextLabel")
+Status.Name = "Status"
+Status.Size = UDim2.new(1, -30, 0, 30)
+Status.Position = UDim2.new(0, 15, 0, 435)
+Status.BackgroundTransparency = 1
+Status.Text = "Status: Idle"
+Status.TextColor3 = Color3.fromRGB(180, 180, 180)
+Status.TextSize = 14
+Status.Font = Enum.Font.Gotham
+Status.Parent = Main
+
+local function GetRoot(Player)
+	if not Player then
+		return nil
+	end
+	local Character = Player.Character
+	if not Character then
+		return nil
+	end
+	return Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function StartNoclip()
+	local Character = LocalPlayer.Character
+	if not Character then
+		return
+	end
+
+	OriginalCanCollide = {}
+
+	for _, Object in ipairs(Character:GetDescendants()) do
+		if Object:IsA("BasePart") then
+			OriginalCanCollide[Object] = Object.CanCollide
+			Object.CanCollide = false
+		end
+	end
+
+	if NoclipConnection then
+		NoclipConnection:Disconnect()
+		NoclipConnection = nil
+	end
+
+	NoclipConnection = RunService.Stepped:Connect(function()
+		if not FollowEnabled then
+			return
+		end
+
+		local CurrentCharacter = LocalPlayer.Character
+		if not CurrentCharacter then
+			return
+		end
+
+		for _, Object in ipairs(CurrentCharacter:GetDescendants()) do
+			if Object:IsA("BasePart") then
+				Object.CanCollide = false
+			end
+		end
+	end)
+end
+
+local function StopNoclip()
+	if NoclipConnection then
+		NoclipConnection:Disconnect()
+		NoclipConnection = nil
+	end
+
+	local Character = LocalPlayer.Character
+
+	if Character then
+		for _, Object in ipairs(Character:GetDescendants()) do
+			if Object:IsA("BasePart") then
+				if OriginalCanCollide[Object] ~= nil then
+					Object.CanCollide = OriginalCanCollide[Object]
+				else
+					if Object.Name == "HumanoidRootPart" then
+						Object.CanCollide = false
+					else
+						Object.CanCollide = true
+					end
+				end
+			end
+		end
+	end
+
+	OriginalCanCollide = {}
+end
+
+local function CreateFlySystem()
+	local Character = LocalPlayer.Character
+	local Root = GetRoot(LocalPlayer)
+
+	if not Character or not Root then
+		return false
+	end
+
+	if FlyVelocity then
+		FlyVelocity:Destroy()
+		FlyVelocity = nil
+	end
+
+	if FlyOrientation then
+		FlyOrientation:Destroy()
+		FlyOrientation = nil
+	end
+
+	if FlyAttachment then
+		FlyAttachment:Destroy()
+		FlyAttachment = nil
+	end
+
+	FlyAttachment = Instance.new("Attachment")
+	FlyAttachment.Name = "PlayerFollowFlyAttachment"
+	FlyAttachment.Parent = Root
+
+	FlyVelocity = Instance.new("LinearVelocity")
+	FlyVelocity.Name = "PlayerFollowFlyVelocity"
+	FlyVelocity.Attachment0 = FlyAttachment
+	FlyVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	FlyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	FlyVelocity.MaxForce = math.huge
+	FlyVelocity.VectorVelocity = Vector3.zero
+	FlyVelocity.Parent = Root
+
+	FlyOrientation = Instance.new("AlignOrientation")
+	FlyOrientation.Name = "PlayerFollowFlyOrientation"
+	FlyOrientation.Attachment0 = FlyAttachment
+	FlyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	FlyOrientation.MaxTorque = math.huge
+	FlyOrientation.MaxAngularVelocity = math.huge
+	FlyOrientation.Responsiveness = 35
+	FlyOrientation.RigidityEnabled = false
+	FlyOrientation.Parent = Root
+
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+	if Humanoid then
+		Humanoid.AutoRotate = false
+		Humanoid.PlatformStand = true
+	end
+
+	StartNoclip()
+
+	return true
+end
+
+local function StopFlySystem()
+	if FlyVelocity then
+		FlyVelocity.VectorVelocity = Vector3.zero
+		FlyVelocity:Destroy()
+		FlyVelocity = nil
+	end
+
+	if FlyOrientation then
+		FlyOrientation:Destroy()
+		FlyOrientation = nil
+	end
+
+	if FlyAttachment then
+		FlyAttachment:Destroy()
+		FlyAttachment = nil
+	end
+
+	StopNoclip()
+
+	local Character = LocalPlayer.Character
+
+	if Character then
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+		if Humanoid then
+			Humanoid.PlatformStand = false
+			Humanoid.AutoRotate = true
+			Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end
+end
+
+local function GetTargetPosition(TargetRoot)
+	return TargetRoot.Position + Vector3.new(0, FOLLOW_HEIGHT, 0) - TargetRoot.CFrame.LookVector * FOLLOW_DISTANCE
+end
+
+local function UpdateFlying()
+	if not FollowEnabled then
+		return
+	end
+
+	local MyRoot = GetRoot(LocalPlayer)
+	local TargetRoot = GetRoot(SelectedPlayer)
+
+	if not MyRoot or not TargetRoot then
+		Status.Text = "Status: Waiting for character..."
+		return
+	end
+
+	if not FlyVelocity or not FlyOrientation then
+		if not CreateFlySystem() then
+			return
+		end
+	end
+
+	local TargetPosition = GetTargetPosition(TargetRoot)
+	local CurrentPosition = MyRoot.Position
+	local Offset = TargetPosition - CurrentPosition
+	local Distance = Offset.Magnitude
+
+	if Distance <= ARRIVE_DISTANCE then
+		FlyVelocity.VectorVelocity = Vector3.zero
+		FlyOrientation.CFrame = CFrame.lookAt(CurrentPosition, TargetRoot.Position)
+		Status.Text = "Status: Following " .. SelectedPlayer.DisplayName
+		return
+	end
+
+	local Direction = Offset.Unit
+	local SpeedMultiplier = math.clamp(Distance / 15, 0.35, 1)
+	local CurrentSpeed = FlySpeed * SpeedMultiplier
+
+	FlyVelocity.VectorVelocity = Direction * CurrentSpeed
+	FlyOrientation.CFrame = CFrame.lookAt(CurrentPosition, TargetRoot.Position)
+
+	if Distance > 10 then
+		Status.Text = "Status: Flying to " .. SelectedPlayer.DisplayName
+	else
+		Status.Text = "Status: Following " .. SelectedPlayer.DisplayName
+	end
+end
+
+local function StartFollow()
+	if FollowingConnection then
+		FollowingConnection:Disconnect()
+		FollowingConnection = nil
+	end
+
+	if not CreateFlySystem() then
+		Status.Text = "Status: Character not ready"
+		FollowEnabled = false
+		return
+	end
+
+	FollowEnabled = true
+
+	FollowingConnection = RunService.Heartbeat:Connect(function()
+		if not FollowEnabled then
+			return
+		end
+
+		if not SelectedPlayer or not SelectedPlayer.Parent then
+			FollowEnabled = false
+			StopFlySystem()
+			return
+		end
+
+		UpdateFlying()
+	end)
+end
+
+local function StopFollow()
+	FollowEnabled = false
+
+	if FollowingConnection then
+		FollowingConnection:Disconnect()
+		FollowingConnection = nil
+	end
+
+	StopFlySystem()
+
+	FollowButton.Text = "FOLLOW"
+	FollowButton.BackgroundColor3 = Color3.fromRGB(55, 120, 220)
+	Status.Text = "Status: Follow stopped"
+end
+
+local function CreatePlayerItem(Player)
+	local Item = Instance.new("Frame")
+	Item.Name = Player.Name
+	Item.Size = UDim2.new(1, -4, 0, 60)
+	Item.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+	Item.BorderSizePixel = 0
+	Item.Parent = ScrollingFrame
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 8)
+	Corner.Parent = Item
+
+	local Avatar = Instance.new("ImageLabel")
+	Avatar.Name = "Avatar"
+	Avatar.Size = UDim2.new(0, 48, 0, 48)
+	Avatar.Position = UDim2.new(0, 6, 0.5, -24)
+	Avatar.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	Avatar.BorderSizePixel = 0
+	Avatar.Parent = Item
+
+	local AvatarCorner = Instance.new("UICorner")
+	AvatarCorner.CornerRadius = UDim.new(1, 0)
+	AvatarCorner.Parent = Avatar
+
+	task.spawn(function()
+		local Success, Image = pcall(function()
+			return Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+
+		if Success and Avatar.Parent then
+			Avatar.Image = Image
+		end
+	end)
+
+	local NameLabel = Instance.new("TextLabel")
+	NameLabel.Name = "PlayerName"
+	NameLabel.Size = UDim2.new(1, -70, 1, 0)
+	NameLabel.Position = UDim2.new(0, 65, 0, 0)
+	NameLabel.BackgroundTransparency = 1
+	NameLabel.Text = Player.DisplayName .. "\n@" .. Player.Name
+	NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	NameLabel.TextSize = 14
+	NameLabel.Font = Enum.Font.Gotham
+	NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	NameLabel.Parent = Item
+
+	local SelectButton = Instance.new("TextButton")
+	SelectButton.Name = "Select"
+	SelectButton.Size = UDim2.new(1, 0, 1, 0)
+	SelectButton.BackgroundTransparency = 1
+	SelectButton.Text = ""
+	SelectButton.Parent = Item
+
+	SelectButton.MouseButton1Click:Connect(function()
+		if not Player.Parent then
+			return
+		end
+
+		if Player == LocalPlayer then
+			return
+		end
+
+		SelectedPlayer = Player
+		SelectedLabel.Text = "Selected: " .. Player.DisplayName .. "  @" .. Player.Name
+		Status.Text = "Status: Player selected"
+
+		for _, Child in ipairs(ScrollingFrame:GetChildren()) do
+			if Child:IsA("Frame") then
+				Child.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+			end
+		end
+
+		Item.BackgroundColor3 = Color3.fromRGB(55, 100, 170)
+	end)
+
+	return Item
+end
+
+local function RefreshPlayers()
+	for _, Child in ipairs(ScrollingFrame:GetChildren()) do
+		if Child:IsA("Frame") then
+			Child:Destroy()
+		end
+	end
+
+	for _, Player in ipairs(Players:GetPlayers()) do
+		if Player ~= LocalPlayer then
+			CreatePlayerItem(Player)
+		end
+	end
+end
+
+Players.PlayerAdded:Connect(function()
+	task.wait(0.5)
+	RefreshPlayers()
+end)
+
+Players.PlayerRemoving:Connect(function(Player)
+	if SelectedPlayer == Player then
+		StopFollow()
+		SelectedPlayer = nil
+		SelectedLabel.Text = "Selected: None"
+		Status.Text = "Status: Player left"
+	end
+
+	task.wait(0.1)
+	RefreshPlayers()
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+	StopFlySystem()
+
+	if FollowEnabled then
+		task.wait(1)
+
+		if SelectedPlayer and SelectedPlayer.Parent then
+			StartFollow()
+		end
+	end
+end)
+
+FollowButton.MouseButton1Click:Connect(function()
+	if not SelectedPlayer then
+		Status.Text = "Status: Select a player first!"
+		return
+	end
+
+	if not SelectedPlayer.Parent then
+		Status.Text = "Status: Player is no longer in game"
+		return
+	end
+
+	if FollowEnabled then
+		StopFollow()
+		return
+	end
+
+	FollowEnabled = true
+	FollowButton.Text = "STOP FOLLOW"
+	FollowButton.BackgroundColor3 = Color3.fromRGB(190, 65, 65)
+	Status.Text = "Status: Starting fly..."
+
+	StartFollow()
+end)
+
+Close.MouseButton1Click:Connect(function()
+	StopFollow()
+
+	if ScreenGui then
+		ScreenGui:Destroy()
+	end
+end)
+
+local Dragging = false
+local DragStart
+local StartPosition
+local DragConnection
+
+Title.InputBegan:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = true
+		DragStart = Input.Position
+		StartPosition = Main.Position
+
+		Input.Changed:Connect(function()
+			if Input.UserInputState == Enum.UserInputState.End then
+				Dragging = false
+
+				if DragConnection then
+					DragConnection:Disconnect()
+					DragConnection = nil
+				end
+			end
+		end)
+	end
+end)
+
+Title.InputChanged:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+		if DragConnection then
+			DragConnection:Disconnect()
+		end
+
+		DragConnection = Input.Changed:Connect(function()
+			if not Dragging then
+				return
+			end
+
+			local Delta = Input.Position - DragStart
+
+			Main.Position = UDim2.new(
+				StartPosition.X.Scale,
+				StartPosition.X.Offset + Delta.X,
+				StartPosition.Y.Scale,
+				StartPosition.Y.Offset + Delta.Y
+			)
+		end)
+	end
+end)
+
+RefreshPlayers()
