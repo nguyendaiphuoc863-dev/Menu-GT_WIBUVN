@@ -1,436 +1,650 @@
---[[
-	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
-]]
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
-local Players = game:GetService("Players");
-local RunService = game:GetService("RunService");
-local UserInputService = game:GetService("UserInputService");
-local TweenService = game:GetService("TweenService");
-local LocalPlayer = Players.LocalPlayer;
-local Workspace = workspace;
-local UPDATE_INTERVAL = 0.01;
-local LIST_REFRESH = 0.1;
-local BEHIND_STUDS = 4;
-local HEIGHT_OFFSET = 2;
-local TOGGLE_KEY = Enum.KeyCode.G;
-local TWEEN_DURATION_FACTOR = 0.95;
-local TWEEN_EASING_STYLE = Enum.EasingStyle.Sine;
-local TWEEN_EASING_DIR = Enum.EasingDirection.Out;
-local PLAYER_SMOOTH_SPEED = 8;
-local CAMERA_ASSIST = 0.18;
-local CAMERA_MIN_ASSIST = 0.03;
-local CAMERA_ASSIST_SCALE = 12;
-local MOUSE_OVERRIDE_WINDOW = 0.25;
-local targetPlayer = nil;
-local running = false;
-local lastTpTick = 0;
-local lastListTick = 0;
-local lastMouseMove = 0;
-local cameraSaved = nil;
-local activeTween = nil;
-local function getCharacter(p)
-	return (p and p.Character) or nil;
+local LocalPlayer = Players.LocalPlayer
+
+local GUI_NAME = "SafePlayerFollowGUI"
+local DEFAULT_SPEED = 150
+local MIN_SPEED = 50
+local MAX_SPEED = 350
+
+local FOLLOW_DISTANCE = 4
+local FOLLOW_HEIGHT = 4
+local ARRIVE_DISTANCE = 2
+local UPDATE_RATE = 0.03
+
+if CoreGui:FindFirstChild(GUI_NAME) then
+	CoreGui[GUI_NAME]:Destroy()
 end
-local function getHRP(character)
-	if not character then
-		return nil;
+
+local SelectedPlayer = nil
+local FollowEnabled = false
+local FlySpeed = DEFAULT_SPEED
+local FollowingConnection = nil
+
+local FlyAttachment = nil
+local FlyVelocity = nil
+local FlyOrientation = nil
+
+local OriginalCanCollide = {}
+local NoclipConnection = nil
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = CoreGui
+
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 420, 0, 520)
+Main.Position = UDim2.new(0.5, -210, 0.5, -260)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Main.BorderSizePixel = 0
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, -50, 0, 45)
+Title.Position = UDim2.new(0, 15, 0, 5)
+Title.BackgroundTransparency = 1
+Title.Text = "PLAYER FOLLOW"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 21
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Main
+
+local Close = Instance.new("TextButton")
+Close.Name = "Close"
+Close.Size = UDim2.new(0, 35, 0, 35)
+Close.Position = UDim2.new(1, -42, 0, 10)
+Close.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+Close.Text = "X"
+Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+Close.TextSize = 17
+Close.Font = Enum.Font.GothamBold
+Close.Parent = Main
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = Close
+
+local SelectedLabel = Instance.new("TextLabel")
+SelectedLabel.Name = "SelectedPlayer"
+SelectedLabel.Size = UDim2.new(1, -30, 0, 35)
+SelectedLabel.Position = UDim2.new(0, 15, 0, 50)
+SelectedLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+SelectedLabel.Text = "Selected: None"
+SelectedLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+SelectedLabel.TextSize = 15
+SelectedLabel.Font = Enum.Font.Gotham
+SelectedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SelectedLabel.Parent = Main
+
+local SelectedPadding = Instance.new("UIPadding")
+SelectedPadding.PaddingLeft = UDim.new(0, 12)
+SelectedPadding.Parent = SelectedLabel
+
+local SelectedCorner = Instance.new("UICorner")
+SelectedCorner.CornerRadius = UDim.new(0, 8)
+SelectedCorner.Parent = SelectedLabel
+
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Name = "PlayerList"
+ScrollingFrame.Size = UDim2.new(1, -30, 0, 285)
+ScrollingFrame.Position = UDim2.new(0, 15, 0, 95)
+ScrollingFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.ScrollBarThickness = 6
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScrollingFrame.Parent = Main
+
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+ScrollCorner.Parent = ScrollingFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 6)
+ListLayout.SortOrder = Enum.SortOrder.Name
+ListLayout.Parent = ScrollingFrame
+
+local ListPadding = Instance.new("UIPadding")
+ListPadding.PaddingTop = UDim.new(0, 6)
+ListPadding.PaddingBottom = UDim.new(0, 6)
+ListPadding.PaddingLeft = UDim.new(0, 6)
+ListPadding.PaddingRight = UDim.new(0, 6)
+ListPadding.Parent = ScrollingFrame
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Name = "SpeedLabel"
+SpeedLabel.Size = UDim2.new(0, 100, 0, 32)
+SpeedLabel.Position = UDim2.new(0, 15, 0, 390)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Speed:"
+SpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedLabel.TextSize = 15
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+SpeedLabel.Parent = Main
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Name = "SpeedInput"
+SpeedBox.Size = UDim2.new(0, 100, 0, 32)
+SpeedBox.Position = UDim2.new(0, 90, 0, 390)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+SpeedBox.Text = tostring(DEFAULT_SPEED)
+SpeedBox.PlaceholderText = "50 - 350"
+SpeedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedBox.TextSize = 14
+SpeedBox.Font = Enum.Font.Gotham
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.Parent = Main
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 7)
+SpeedCorner.Parent = SpeedBox
+
+SpeedBox.FocusLost:Connect(function()
+	local Number = tonumber(SpeedBox.Text)
+	if not Number then
+		Number = DEFAULT_SPEED
 	end
-	return character:FindFirstChild("HumanoidRootPart");
+	Number = math.clamp(Number, MIN_SPEED, MAX_SPEED)
+	FlySpeed = Number
+	SpeedBox.Text = tostring(Number)
+end)
+
+local FollowButton = Instance.new("TextButton")
+FollowButton.Name = "FollowButton"
+FollowButton.Size = UDim2.new(0, 180, 0, 40)
+FollowButton.Position = UDim2.new(1, -195, 0, 386)
+FollowButton.BackgroundColor3 = Color3.fromRGB(55, 120, 220)
+FollowButton.Text = "FOLLOW"
+FollowButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+FollowButton.TextSize = 16
+FollowButton.Font = Enum.Font.GothamBold
+FollowButton.Parent = Main
+
+local FollowCorner = Instance.new("UICorner")
+FollowCorner.CornerRadius = UDim.new(0, 8)
+FollowCorner.Parent = FollowButton
+
+local Status = Instance.new("TextLabel")
+Status.Name = "Status"
+Status.Size = UDim2.new(1, -30, 0, 30)
+Status.Position = UDim2.new(0, 15, 0, 435)
+Status.BackgroundTransparency = 1
+Status.Text = "Status: Idle"
+Status.TextColor3 = Color3.fromRGB(180, 180, 180)
+Status.TextSize = 14
+Status.Font = Enum.Font.Gotham
+Status.Parent = Main
+
+local function GetRoot(Player)
+	if not Player then
+		return nil
+	end
+	local Character = Player.Character
+	if not Character then
+		return nil
+	end
+	return Character:FindFirstChild("HumanoidRootPart")
 end
-local function getHumanoid(character)
-	if not character then
-		return nil;
+
+local function StartNoclip()
+	local Character = LocalPlayer.Character
+	if not Character then
+		return
 	end
-	return character:FindFirstChildOfClass("Humanoid");
-end
-local function distanceToPlayer(p)
-	local myChar = getCharacter(LocalPlayer);
-	local myHRP = myChar and getHRP(myChar);
-	local theirHRP = getHRP(getCharacter(p));
-	if not (myHRP and theirHRP) then
-		return math.huge;
-	end
-	return (theirHRP.Position - myHRP.Position).Magnitude;
-end
-local function saveCameraState()
-	local cam = Workspace.CurrentCamera;
-	if not cam then
-		return;
-	end
-	cameraSaved = {Type=cam.CameraType,Subject=cam.CameraSubject,CFrame=cam.CFrame};
-end
-local function restoreCameraState()
-	local cam = Workspace.CurrentCamera;
-	if (not cam or not cameraSaved) then
-		return;
-	end
-	pcall(function()
-		cam.CameraType = cameraSaved.Type or Enum.CameraType.Custom;
-		cam.CameraSubject = cameraSaved.Subject;
-		if cameraSaved.CFrame then
-			cam.CFrame = cameraSaved.CFrame;
+
+	OriginalCanCollide = {}
+
+	for _, Object in ipairs(Character:GetDescendants()) do
+		if Object:IsA("BasePart") then
+			OriginalCanCollide[Object] = Object.CanCollide
+			Object.CanCollide = false
 		end
-	end);
-	cameraSaved = nil;
+	end
+
+	if NoclipConnection then
+		NoclipConnection:Disconnect()
+		NoclipConnection = nil
+	end
+
+	NoclipConnection = RunService.Stepped:Connect(function()
+		if not FollowEnabled then
+			return
+		end
+
+		local CurrentCharacter = LocalPlayer.Character
+		if not CurrentCharacter then
+			return
+		end
+
+		for _, Object in ipairs(CurrentCharacter:GetDescendants()) do
+			if Object:IsA("BasePart") then
+				Object.CanCollide = false
+			end
+		end
+	end)
 end
-local function smoothAlpha(speed, dt)
-	return math.clamp(1 - math.exp(-speed * dt), 0, 1);
+
+local function StopNoclip()
+	if NoclipConnection then
+		NoclipConnection:Disconnect()
+		NoclipConnection = nil
+	end
+
+	local Character = LocalPlayer.Character
+
+	if Character then
+		for _, Object in ipairs(Character:GetDescendants()) do
+			if Object:IsA("BasePart") then
+				if OriginalCanCollide[Object] ~= nil then
+					Object.CanCollide = OriginalCanCollide[Object]
+				else
+					if Object.Name == "HumanoidRootPart" then
+						Object.CanCollide = false
+					else
+						Object.CanCollide = true
+					end
+				end
+			end
+		end
+	end
+
+	OriginalCanCollide = {}
 end
-local ScreenGui = Instance.new("ScreenGui");
-ScreenGui.Name = "TPBehindGui";
-ScreenGui.ResetOnSpawn = false;
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui");
-local Window = Instance.new("Frame");
-Window.Name = "Window";
-Window.Size = UDim2.fromOffset(320, 360);
-Window.Position = UDim2.fromOffset(20, 110);
-Window.BackgroundColor3 = Color3.fromRGB(28, 28, 30);
-Window.BorderSizePixel = 0;
-Window.Parent = ScreenGui;
-Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 8);
-local Header = Instance.new("Frame", Window);
-Header.Size = UDim2.new(1, 0, 0, 36);
-Header.BackgroundTransparency = 1;
-local Title = Instance.new("TextLabel", Header);
-Title.Size = UDim2.new(0.7, -12, 1, 0);
-Title.Position = UDim2.fromOffset(12, 0);
-Title.BackgroundTransparency = 1;
-Title.Font = Enum.Font.GothamBold;
-Title.TextSize = 16;
-Title.TextColor3 = Color3.fromRGB(235, 235, 235);
-Title.TextXAlignment = Enum.TextXAlignment.Left;
-Title.Text = "TP Behind";
-local MinBtn = Instance.new("TextButton", Header);
-MinBtn.Size = UDim2.fromOffset(28, 28);
-MinBtn.Position = UDim2.new(1, -36, 0, 4);
-MinBtn.Text = "-";
-MinBtn.Font = Enum.Font.Gotham;
-MinBtn.TextSize = 18;
-MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40);
-MinBtn.TextColor3 = Color3.fromRGB(230, 230, 230);
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6);
-local ToggleBtn = Instance.new("TextButton", Header);
-ToggleBtn.Size = UDim2.fromOffset(88, 28);
-ToggleBtn.Position = UDim2.new(1, -132, 0, 4);
-ToggleBtn.Text = "Start (G)";
-ToggleBtn.Font = Enum.Font.GothamBold;
-ToggleBtn.TextSize = 14;
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255);
-Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6);
-local targetLabel = Instance.new("TextLabel", Window);
-targetLabel.Size = UDim2.new(1, -20, 0, 22);
-targetLabel.Position = UDim2.fromOffset(10, 44);
-targetLabel.BackgroundTransparency = 1;
-targetLabel.Font = Enum.Font.Gotham;
-targetLabel.TextSize = 14;
-targetLabel.TextXAlignment = Enum.TextXAlignment.Left;
-targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200);
-targetLabel.Text = "Target: (none)";
-local LeftColumn = Instance.new("Frame", Window);
-LeftColumn.Size = UDim2.new(1, -20, 1, -86);
-LeftColumn.Position = UDim2.fromOffset(10, 70);
-LeftColumn.BackgroundTransparency = 1;
-local ListFrame = Instance.new("ScrollingFrame", LeftColumn);
-ListFrame.Name = "PlayerList";
-ListFrame.Size = UDim2.new(1, 0, 1, 0);
-ListFrame.Position = UDim2.fromOffset(0, 0);
-ListFrame.CanvasSize = UDim2.new(0, 0, 0, 0);
-ListFrame.ScrollBarThickness = 6;
-ListFrame.BorderSizePixel = 0;
-ListFrame.BackgroundTransparency = 0.12;
-ListFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18);
-Instance.new("UICorner", ListFrame).CornerRadius = UDim.new(0, 6);
-local UIListLayout = Instance.new("UIListLayout", ListFrame);
-UIListLayout.Padding = UDim.new(0, 6);
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder;
-local minimized = false;
-MinBtn.MouseButton1Click:Connect(function()
-	minimized = not minimized;
-	if minimized then
-		Window.Size = UDim2.fromOffset(220, 46);
-		ListFrame.Visible = false;
-		targetLabel.Visible = false;
-		MinBtn.Text = "+";
+
+local function CreateFlySystem()
+	local Character = LocalPlayer.Character
+	local Root = GetRoot(LocalPlayer)
+
+	if not Character or not Root then
+		return false
+	end
+
+	if FlyVelocity then
+		FlyVelocity:Destroy()
+		FlyVelocity = nil
+	end
+
+	if FlyOrientation then
+		FlyOrientation:Destroy()
+		FlyOrientation = nil
+	end
+
+	if FlyAttachment then
+		FlyAttachment:Destroy()
+		FlyAttachment = nil
+	end
+
+	FlyAttachment = Instance.new("Attachment")
+	FlyAttachment.Name = "PlayerFollowFlyAttachment"
+	FlyAttachment.Parent = Root
+
+	FlyVelocity = Instance.new("LinearVelocity")
+	FlyVelocity.Name = "PlayerFollowFlyVelocity"
+	FlyVelocity.Attachment0 = FlyAttachment
+	FlyVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	FlyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	FlyVelocity.MaxForce = math.huge
+	FlyVelocity.VectorVelocity = Vector3.zero
+	FlyVelocity.Parent = Root
+
+	FlyOrientation = Instance.new("AlignOrientation")
+	FlyOrientation.Name = "PlayerFollowFlyOrientation"
+	FlyOrientation.Attachment0 = FlyAttachment
+	FlyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	FlyOrientation.MaxTorque = math.huge
+	FlyOrientation.MaxAngularVelocity = math.huge
+	FlyOrientation.Responsiveness = 35
+	FlyOrientation.RigidityEnabled = false
+	FlyOrientation.Parent = Root
+
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+	if Humanoid then
+		Humanoid.AutoRotate = false
+		Humanoid.PlatformStand = true
+	end
+
+	StartNoclip()
+
+	return true
+end
+
+local function StopFlySystem()
+	if FlyVelocity then
+		FlyVelocity.VectorVelocity = Vector3.zero
+		FlyVelocity:Destroy()
+		FlyVelocity = nil
+	end
+
+	if FlyOrientation then
+		FlyOrientation:Destroy()
+		FlyOrientation = nil
+	end
+
+	if FlyAttachment then
+		FlyAttachment:Destroy()
+		FlyAttachment = nil
+	end
+
+	StopNoclip()
+
+	local Character = LocalPlayer.Character
+
+	if Character then
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+		if Humanoid then
+			Humanoid.PlatformStand = false
+			Humanoid.AutoRotate = true
+			Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end
+end
+
+local function GetTargetPosition(TargetRoot)
+	return TargetRoot.Position + Vector3.new(0, FOLLOW_HEIGHT, 0) - TargetRoot.CFrame.LookVector * FOLLOW_DISTANCE
+end
+
+local function UpdateFlying()
+	if not FollowEnabled then
+		return
+	end
+
+	local MyRoot = GetRoot(LocalPlayer)
+	local TargetRoot = GetRoot(SelectedPlayer)
+
+	if not MyRoot or not TargetRoot then
+		Status.Text = "Status: Waiting for character..."
+		return
+	end
+
+	if not FlyVelocity or not FlyOrientation then
+		if not CreateFlySystem() then
+			return
+		end
+	end
+
+	local TargetPosition = GetTargetPosition(TargetRoot)
+	local CurrentPosition = MyRoot.Position
+	local Offset = TargetPosition - CurrentPosition
+	local Distance = Offset.Magnitude
+
+	if Distance <= ARRIVE_DISTANCE then
+		FlyVelocity.VectorVelocity = Vector3.zero
+		FlyOrientation.CFrame = CFrame.lookAt(CurrentPosition, TargetRoot.Position)
+		Status.Text = "Status: Following " .. SelectedPlayer.DisplayName
+		return
+	end
+
+	local Direction = Offset.Unit
+	local SpeedMultiplier = math.clamp(Distance / 15, 0.35, 1)
+	local CurrentSpeed = FlySpeed * SpeedMultiplier
+
+	FlyVelocity.VectorVelocity = Direction * CurrentSpeed
+	FlyOrientation.CFrame = CFrame.lookAt(CurrentPosition, TargetRoot.Position)
+
+	if Distance > 10 then
+		Status.Text = "Status: Flying to " .. SelectedPlayer.DisplayName
 	else
-		Window.Size = UDim2.fromOffset(320, 360);
-		ListFrame.Visible = true;
-		targetLabel.Visible = true;
-		MinBtn.Text = "-";
-	end
-end);
-local dragging, dragStartPos, windowStartPos = false, nil, nil;
-Header.InputBegan:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1) then
-		dragging = true;
-		dragStartPos = input.Position;
-		windowStartPos = Window.Position;
-	end
-end);
-Header.InputEnded:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1) then
-		dragging = false;
-	end
-end);
-UserInputService.InputChanged:Connect(function(input)
-	if (dragging and (input.UserInputType == Enum.UserInputType.MouseMovement)) then
-		local delta = input.Position - dragStartPos;
-		Window.Position = UDim2.new(windowStartPos.X.Scale, windowStartPos.X.Offset + delta.X, windowStartPos.Y.Scale, windowStartPos.Y.Offset + delta.Y);
-	end
-end);
-local buttons = {};
-local function highlightSelectedButton()
-	for userId, rec in pairs(buttons) do
-		if (targetPlayer and (tonumber(userId) == targetPlayer.UserId)) then
-			rec.btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60);
-		else
-			rec.btn.BackgroundColor3 = Color3.fromRGB(34, 34, 34);
-		end
+		Status.Text = "Status: Following " .. SelectedPlayer.DisplayName
 	end
 end
-local function setTarget(p)
-	targetPlayer = p;
-	if p then
-		targetLabel.Text = ("Target: %s"):format(p.DisplayName or p.Name);
-	else
-		targetLabel.Text = "Target: (none)";
+
+local function StartFollow()
+	if FollowingConnection then
+		FollowingConnection:Disconnect()
+		FollowingConnection = nil
 	end
-	highlightSelectedButton();
-end
-local function createButtonFor(p)
-	local b = Instance.new("TextButton");
-	b.Name = "Btn_" .. tostring(p.UserId);
-	b.Size = UDim2.new(1, -12, 0, 34);
-	b.BackgroundColor3 = Color3.fromRGB(34, 34, 34);
-	b.TextColor3 = Color3.fromRGB(236, 236, 236);
-	b.Font = Enum.Font.Gotham;
-	b.TextSize = 14;
-	b.AutoButtonColor = true;
-	b.Parent = ListFrame;
-	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6);
-	local conn = b.MouseButton1Click:Connect(function()
-		setTarget(p);
-	end);
-	buttons[tostring(p.UserId)] = {btn=b,conn=conn};
-	return b;
-end
-local function getSortedOthers()
-	local out = {};
-	for _, p in ipairs(Players:GetPlayers()) do
-		if (p ~= LocalPlayer) then
-			table.insert(out, {p=p,d=distanceToPlayer(p)});
+
+	if not CreateFlySystem() then
+		Status.Text = "Status: Character not ready"
+		FollowEnabled = false
+		return
+	end
+
+	FollowEnabled = true
+
+	FollowingConnection = RunService.Heartbeat:Connect(function()
+		if not FollowEnabled then
+			return
 		end
-	end
-	table.sort(out, function(a, b)
-		if (a.d == b.d) then
-			return (a.p.DisplayName or a.p.Name) < (b.p.DisplayName or b.p.Name);
+
+		if not SelectedPlayer or not SelectedPlayer.Parent then
+			FollowEnabled = false
+			StopFlySystem()
+			return
 		end
-		return a.d < b.d;
-	end);
-	return out;
+
+		UpdateFlying()
+	end)
 end
-local function updatePlayerButtons()
-	local sorted = getSortedOthers();
-	local seen = {};
-	for i, item in ipairs(sorted) do
-		local p = item.p;
-		local key = tostring(p.UserId);
-		seen[key] = true;
-		local brec = buttons[key];
-		if not brec then
-			local newBtn = createButtonFor(p);
-			buttons[key].btn = newBtn;
-			brec = buttons[key];
-		end
-		if (brec and brec.btn) then
-			local txt = string.format("%s - %.1f studs", p.DisplayName or p.Name, item.d);
-			brec.btn.Text = txt;
-			brec.btn.LayoutOrder = i;
-		end
+
+local function StopFollow()
+	FollowEnabled = false
+
+	if FollowingConnection then
+		FollowingConnection:Disconnect()
+		FollowingConnection = nil
 	end
-	for userId, rec in pairs(buttons) do
-		local found = seen[userId];
-		if not found then
-			if rec.conn then
-				rec.conn:Disconnect();
-			end
-			if rec.btn then
-				rec.btn:Destroy();
-			end
-			buttons[userId] = nil;
-		end
-	end
-	local itemHeight = 34;
-	local padding = UIListLayout.Padding.Offset;
-	local count = #sorted;
-	ListFrame.CanvasSize = UDim2.new(0, 0, 0, (count * (itemHeight + padding)) + 8);
-	if (not targetPlayer and (#sorted > 0)) then
-		setTarget(sorted[1].p);
-	end
-	highlightSelectedButton();
+
+	StopFlySystem()
+
+	FollowButton.Text = "FOLLOW"
+	FollowButton.BackgroundColor3 = Color3.fromRGB(55, 120, 220)
+	Status.Text = "Status: Follow stopped"
 end
-Players.PlayerAdded:Connect(function(p)
-	updatePlayerButtons();
-end);
-Players.PlayerRemoving:Connect(function(p)
-	local key = tostring(p.UserId);
-	if (targetPlayer == p) then
-		setTarget(nil);
-		running = false;
-		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-		ToggleBtn.Text = "Start (G)";
-		restoreCameraState();
-	end
-	updatePlayerButtons();
-end);
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then
-		return;
-	end
-	if (input.KeyCode == TOGGLE_KEY) then
-		running = not running;
-		if running then
-			saveCameraState();
-			ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60);
-			ToggleBtn.Text = "Stop (G)";
-		else
-			ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-			ToggleBtn.Text = "Start (G)";
-			restoreCameraState();
+
+local function CreatePlayerItem(Player)
+	local Item = Instance.new("Frame")
+	Item.Name = Player.Name
+	Item.Size = UDim2.new(1, -4, 0, 60)
+	Item.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+	Item.BorderSizePixel = 0
+	Item.Parent = ScrollingFrame
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 8)
+	Corner.Parent = Item
+
+	local Avatar = Instance.new("ImageLabel")
+	Avatar.Name = "Avatar"
+	Avatar.Size = UDim2.new(0, 48, 0, 48)
+	Avatar.Position = UDim2.new(0, 6, 0.5, -24)
+	Avatar.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	Avatar.BorderSizePixel = 0
+	Avatar.Parent = Item
+
+	local AvatarCorner = Instance.new("UICorner")
+	AvatarCorner.CornerRadius = UDim.new(1, 0)
+	AvatarCorner.Parent = Avatar
+
+	task.spawn(function()
+		local Success, Image = pcall(function()
+			return Players:GetUserThumbnailAsync(Player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+
+		if Success and Avatar.Parent then
+			Avatar.Image = Image
 		end
-	end
-end);
-ToggleBtn.MouseButton1Click:Connect(function()
-	running = not running;
-	if running then
-		saveCameraState();
-		ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60);
-		ToggleBtn.Text = "Stop (G)";
-	else
-		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-		ToggleBtn.Text = "Start (G)";
-		restoreCameraState();
-	end
-end);
-UserInputService.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement) then
-		lastMouseMove = tick();
-	end
-end);
-local function computeIdealBehind(targetHRP)
-	local look = targetHRP.CFrame.LookVector;
-	local behindPos = targetHRP.Position - (look * BEHIND_STUDS);
-	behindPos = behindPos + Vector3.new(0, HEIGHT_OFFSET, 0);
-	local frontPoint = behindPos + look;
-	return CFrame.new(behindPos, frontPoint);
-end
-local function tweenPlaceBehind(myHRP, targetHRP)
-	if not (myHRP and targetHRP) then
-		return;
-	end
-	local desiredCf = computeIdealBehind(targetHRP);
-	if activeTween then
-		pcall(function()
-			activeTween:Cancel();
-		end);
-		activeTween = nil;
-	end
-	local duration = math.max(0.03, UPDATE_INTERVAL * TWEEN_DURATION_FACTOR);
-	local info = TweenInfo.new(duration, TWEEN_EASING_STYLE, TWEEN_EASING_DIR, 0, false, 0);
-	local success, tween = pcall(function()
-		return TweenService:Create(myHRP, info, {CFrame=desiredCf});
-	end);
-	if (success and tween) then
-		activeTween = tween;
-		pcall(function()
-			tween:Play();
-		end);
-		tween.Completed:Connect(function()
-			if (activeTween == tween) then
-				activeTween = nil;
-			end
-		end);
-	end
-end
-local cam = Workspace.CurrentCamera;
-RunService:BindToRenderStep("TPBehindCameraAssist", Enum.RenderPriority.Camera.Value + 1, function(dt)
-	cam = Workspace.CurrentCamera;
-	if not running then
-		return;
-	end
-	if not targetPlayer then
-		return;
-	end
-	local tChar = getCharacter(targetPlayer);
-	local tHRP = getHRP(tChar);
-	if not (tChar and tHRP and getHumanoid(tChar) and (getHumanoid(tChar).Health > 0)) then
-		return;
-	end
-	local desiredHrpCf = computeIdealBehind(tHRP);
-	local look = tHRP.CFrame.LookVector;
-	local camOffset = -(look * 2.2) + Vector3.new(0, 1.6, 0);
-	local camPos = desiredHrpCf.Position + camOffset;
-	local lookAt = tHRP.Position + Vector3.new(0, 1.2, 0);
-	local desiredCamCf = CFrame.new(camPos, lookAt);
-	local timeSinceMouse = tick() - lastMouseMove;
-	local assist = ((timeSinceMouse > MOUSE_OVERRIDE_WINDOW) and CAMERA_ASSIST) or CAMERA_MIN_ASSIST;
-	local alpha = smoothAlpha(CAMERA_ASSIST_SCALE * assist, dt);
-	pcall(function()
-		cam.CameraType = Enum.CameraType.Custom;
-		cam.CFrame = cam.CFrame:Lerp(desiredCamCf, alpha);
-	end);
-end);
-RunService.Heartbeat:Connect(function(dt)
-	lastListTick = lastListTick + dt;
-	if (lastListTick >= LIST_REFRESH) then
-		lastListTick = 0;
-		updatePlayerButtons();
-		if targetPlayer then
-			local tChar = getCharacter(targetPlayer);
-			local tHRP = getHRP(tChar);
-			local tHum = getHumanoid(tChar);
-			if not (tChar and tHRP and tHum and (tHum.Health > 0)) then
-				running = false;
-				ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-				ToggleBtn.Text = "Start (G)";
-				restoreCameraState();
+	end)
+
+	local NameLabel = Instance.new("TextLabel")
+	NameLabel.Name = "PlayerName"
+	NameLabel.Size = UDim2.new(1, -70, 1, 0)
+	NameLabel.Position = UDim2.new(0, 65, 0, 0)
+	NameLabel.BackgroundTransparency = 1
+	NameLabel.Text = Player.DisplayName .. "\n@" .. Player.Name
+	NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	NameLabel.TextSize = 14
+	NameLabel.Font = Enum.Font.Gotham
+	NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	NameLabel.Parent = Item
+
+	local SelectButton = Instance.new("TextButton")
+	SelectButton.Name = "Select"
+	SelectButton.Size = UDim2.new(1, 0, 1, 0)
+	SelectButton.BackgroundTransparency = 1
+	SelectButton.Text = ""
+	SelectButton.Parent = Item
+
+	SelectButton.MouseButton1Click:Connect(function()
+		if not Player.Parent then
+			return
+		end
+
+		if Player == LocalPlayer then
+			return
+		end
+
+		SelectedPlayer = Player
+		SelectedLabel.Text = "Selected: " .. Player.DisplayName .. "  @" .. Player.Name
+		Status.Text = "Status: Player selected"
+
+		for _, Child in ipairs(ScrollingFrame:GetChildren()) do
+			if Child:IsA("Frame") then
+				Child.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
 			end
 		end
+
+		Item.BackgroundColor3 = Color3.fromRGB(55, 100, 170)
+	end)
+
+	return Item
+end
+
+local function RefreshPlayers()
+	for _, Child in ipairs(ScrollingFrame:GetChildren()) do
+		if Child:IsA("Frame") then
+			Child:Destroy()
+		end
 	end
-	if not running then
-		return;
+
+	for _, Player in ipairs(Players:GetPlayers()) do
+		if Player ~= LocalPlayer then
+			CreatePlayerItem(Player)
+		end
 	end
-	if not targetPlayer then
-		return;
+end
+
+Players.PlayerAdded:Connect(function()
+	task.wait(0.5)
+	RefreshPlayers()
+end)
+
+Players.PlayerRemoving:Connect(function(Player)
+	if SelectedPlayer == Player then
+		StopFollow()
+		SelectedPlayer = nil
+		SelectedLabel.Text = "Selected: None"
+		Status.Text = "Status: Player left"
 	end
-	local myChar = getCharacter(LocalPlayer);
-	if not myChar then
-		return;
+
+	task.wait(0.1)
+	RefreshPlayers()
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+	StopFlySystem()
+
+	if FollowEnabled then
+		task.wait(1)
+
+		if SelectedPlayer and SelectedPlayer.Parent then
+			StartFollow()
+		end
 	end
-	local myHRP = getHRP(myChar);
-	local myHum = getHumanoid(myChar);
-	if (not (myHRP and myHum) or (myHum.Health <= 0)) then
-		return;
+end)
+
+FollowButton.MouseButton1Click:Connect(function()
+	if not SelectedPlayer then
+		Status.Text = "Status: Select a player first!"
+		return
 	end
-	local tChar = getCharacter(targetPlayer);
-	local tHRP = getHRP(tChar);
-	local tHum = getHumanoid(tChar);
-	if not (tChar and tHRP and tHum and (tHum.Health > 0)) then
-		running = false;
-		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-		ToggleBtn.Text = "Start (G)";
-		restoreCameraState();
-		return;
+
+	if not SelectedPlayer.Parent then
+		Status.Text = "Status: Player is no longer in game"
+		return
 	end
-	lastTpTick = lastTpTick + dt;
-	if (lastTpTick >= UPDATE_INTERVAL) then
-		lastTpTick = 0;
-		pcall(function()
-			myHum.PlatformStand = false;
-			tweenPlaceBehind(myHRP, tHRP);
-		end);
+
+	if FollowEnabled then
+		StopFollow()
+		return
 	end
-end);
-updatePlayerButtons();
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
-ToggleBtn.Text = "Start (G)";
+
+	FollowEnabled = true
+	FollowButton.Text = "STOP FOLLOW"
+	FollowButton.BackgroundColor3 = Color3.fromRGB(190, 65, 65)
+	Status.Text = "Status: Starting fly..."
+
+	StartFollow()
+end)
+
+Close.MouseButton1Click:Connect(function()
+	StopFollow()
+
+	if ScreenGui then
+		ScreenGui:Destroy()
+	end
+end)
+
+local Dragging = false
+local DragStart
+local StartPosition
+local DragConnection
+
+Title.InputBegan:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = true
+		DragStart = Input.Position
+		StartPosition = Main.Position
+
+		Input.Changed:Connect(function()
+			if Input.UserInputState == Enum.UserInputState.End then
+				Dragging = false
+
+				if DragConnection then
+					DragConnection:Disconnect()
+					DragConnection = nil
+				end
+			end
+		end)
+	end
+end)
+
+Title.InputChanged:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+		if DragConnection then
+			DragConnection:Disconnect()
+		end
+
+		DragConnection = Input.Changed:Connect(function()
+			if not Dragging then
+				return
+			end
+
+			local Delta = Input.Position - DragStart
+
+			Main.Position = UDim2.new(
+				StartPosition.X.Scale,
+				StartPosition.X.Offset + Delta.X,
+				StartPosition.Y.Scale,
+				StartPosition.Y.Offset + Delta.Y
+			)
+		end)
+	end
+end)
+
+RefreshPlayers()
