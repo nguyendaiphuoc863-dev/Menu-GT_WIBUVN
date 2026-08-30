@@ -1,0 +1,436 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+
+local Players = game:GetService("Players");
+local RunService = game:GetService("RunService");
+local UserInputService = game:GetService("UserInputService");
+local TweenService = game:GetService("TweenService");
+local LocalPlayer = Players.LocalPlayer;
+local Workspace = workspace;
+local UPDATE_INTERVAL = 0.01;
+local LIST_REFRESH = 0.1;
+local BEHIND_STUDS = 4;
+local HEIGHT_OFFSET = 2;
+local TOGGLE_KEY = Enum.KeyCode.G;
+local TWEEN_DURATION_FACTOR = 0.95;
+local TWEEN_EASING_STYLE = Enum.EasingStyle.Sine;
+local TWEEN_EASING_DIR = Enum.EasingDirection.Out;
+local PLAYER_SMOOTH_SPEED = 8;
+local CAMERA_ASSIST = 0.18;
+local CAMERA_MIN_ASSIST = 0.03;
+local CAMERA_ASSIST_SCALE = 12;
+local MOUSE_OVERRIDE_WINDOW = 0.25;
+local targetPlayer = nil;
+local running = false;
+local lastTpTick = 0;
+local lastListTick = 0;
+local lastMouseMove = 0;
+local cameraSaved = nil;
+local activeTween = nil;
+local function getCharacter(p)
+	return (p and p.Character) or nil;
+end
+local function getHRP(character)
+	if not character then
+		return nil;
+	end
+	return character:FindFirstChild("HumanoidRootPart");
+end
+local function getHumanoid(character)
+	if not character then
+		return nil;
+	end
+	return character:FindFirstChildOfClass("Humanoid");
+end
+local function distanceToPlayer(p)
+	local myChar = getCharacter(LocalPlayer);
+	local myHRP = myChar and getHRP(myChar);
+	local theirHRP = getHRP(getCharacter(p));
+	if not (myHRP and theirHRP) then
+		return math.huge;
+	end
+	return (theirHRP.Position - myHRP.Position).Magnitude;
+end
+local function saveCameraState()
+	local cam = Workspace.CurrentCamera;
+	if not cam then
+		return;
+	end
+	cameraSaved = {Type=cam.CameraType,Subject=cam.CameraSubject,CFrame=cam.CFrame};
+end
+local function restoreCameraState()
+	local cam = Workspace.CurrentCamera;
+	if (not cam or not cameraSaved) then
+		return;
+	end
+	pcall(function()
+		cam.CameraType = cameraSaved.Type or Enum.CameraType.Custom;
+		cam.CameraSubject = cameraSaved.Subject;
+		if cameraSaved.CFrame then
+			cam.CFrame = cameraSaved.CFrame;
+		end
+	end);
+	cameraSaved = nil;
+end
+local function smoothAlpha(speed, dt)
+	return math.clamp(1 - math.exp(-speed * dt), 0, 1);
+end
+local ScreenGui = Instance.new("ScreenGui");
+ScreenGui.Name = "TPBehindGui";
+ScreenGui.ResetOnSpawn = false;
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui");
+local Window = Instance.new("Frame");
+Window.Name = "Window";
+Window.Size = UDim2.fromOffset(320, 360);
+Window.Position = UDim2.fromOffset(20, 110);
+Window.BackgroundColor3 = Color3.fromRGB(28, 28, 30);
+Window.BorderSizePixel = 0;
+Window.Parent = ScreenGui;
+Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 8);
+local Header = Instance.new("Frame", Window);
+Header.Size = UDim2.new(1, 0, 0, 36);
+Header.BackgroundTransparency = 1;
+local Title = Instance.new("TextLabel", Header);
+Title.Size = UDim2.new(0.7, -12, 1, 0);
+Title.Position = UDim2.fromOffset(12, 0);
+Title.BackgroundTransparency = 1;
+Title.Font = Enum.Font.GothamBold;
+Title.TextSize = 16;
+Title.TextColor3 = Color3.fromRGB(235, 235, 235);
+Title.TextXAlignment = Enum.TextXAlignment.Left;
+Title.Text = "TP Behind";
+local MinBtn = Instance.new("TextButton", Header);
+MinBtn.Size = UDim2.fromOffset(28, 28);
+MinBtn.Position = UDim2.new(1, -36, 0, 4);
+MinBtn.Text = "-";
+MinBtn.Font = Enum.Font.Gotham;
+MinBtn.TextSize = 18;
+MinBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40);
+MinBtn.TextColor3 = Color3.fromRGB(230, 230, 230);
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6);
+local ToggleBtn = Instance.new("TextButton", Header);
+ToggleBtn.Size = UDim2.fromOffset(88, 28);
+ToggleBtn.Position = UDim2.new(1, -132, 0, 4);
+ToggleBtn.Text = "Start (G)";
+ToggleBtn.Font = Enum.Font.GothamBold;
+ToggleBtn.TextSize = 14;
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255);
+Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 6);
+local targetLabel = Instance.new("TextLabel", Window);
+targetLabel.Size = UDim2.new(1, -20, 0, 22);
+targetLabel.Position = UDim2.fromOffset(10, 44);
+targetLabel.BackgroundTransparency = 1;
+targetLabel.Font = Enum.Font.Gotham;
+targetLabel.TextSize = 14;
+targetLabel.TextXAlignment = Enum.TextXAlignment.Left;
+targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200);
+targetLabel.Text = "Target: (none)";
+local LeftColumn = Instance.new("Frame", Window);
+LeftColumn.Size = UDim2.new(1, -20, 1, -86);
+LeftColumn.Position = UDim2.fromOffset(10, 70);
+LeftColumn.BackgroundTransparency = 1;
+local ListFrame = Instance.new("ScrollingFrame", LeftColumn);
+ListFrame.Name = "PlayerList";
+ListFrame.Size = UDim2.new(1, 0, 1, 0);
+ListFrame.Position = UDim2.fromOffset(0, 0);
+ListFrame.CanvasSize = UDim2.new(0, 0, 0, 0);
+ListFrame.ScrollBarThickness = 6;
+ListFrame.BorderSizePixel = 0;
+ListFrame.BackgroundTransparency = 0.12;
+ListFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18);
+Instance.new("UICorner", ListFrame).CornerRadius = UDim.new(0, 6);
+local UIListLayout = Instance.new("UIListLayout", ListFrame);
+UIListLayout.Padding = UDim.new(0, 6);
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+local minimized = false;
+MinBtn.MouseButton1Click:Connect(function()
+	minimized = not minimized;
+	if minimized then
+		Window.Size = UDim2.fromOffset(220, 46);
+		ListFrame.Visible = false;
+		targetLabel.Visible = false;
+		MinBtn.Text = "+";
+	else
+		Window.Size = UDim2.fromOffset(320, 360);
+		ListFrame.Visible = true;
+		targetLabel.Visible = true;
+		MinBtn.Text = "-";
+	end
+end);
+local dragging, dragStartPos, windowStartPos = false, nil, nil;
+Header.InputBegan:Connect(function(input)
+	if (input.UserInputType == Enum.UserInputType.MouseButton1) then
+		dragging = true;
+		dragStartPos = input.Position;
+		windowStartPos = Window.Position;
+	end
+end);
+Header.InputEnded:Connect(function(input)
+	if (input.UserInputType == Enum.UserInputType.MouseButton1) then
+		dragging = false;
+	end
+end);
+UserInputService.InputChanged:Connect(function(input)
+	if (dragging and (input.UserInputType == Enum.UserInputType.MouseMovement)) then
+		local delta = input.Position - dragStartPos;
+		Window.Position = UDim2.new(windowStartPos.X.Scale, windowStartPos.X.Offset + delta.X, windowStartPos.Y.Scale, windowStartPos.Y.Offset + delta.Y);
+	end
+end);
+local buttons = {};
+local function highlightSelectedButton()
+	for userId, rec in pairs(buttons) do
+		if (targetPlayer and (tonumber(userId) == targetPlayer.UserId)) then
+			rec.btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60);
+		else
+			rec.btn.BackgroundColor3 = Color3.fromRGB(34, 34, 34);
+		end
+	end
+end
+local function setTarget(p)
+	targetPlayer = p;
+	if p then
+		targetLabel.Text = ("Target: %s"):format(p.DisplayName or p.Name);
+	else
+		targetLabel.Text = "Target: (none)";
+	end
+	highlightSelectedButton();
+end
+local function createButtonFor(p)
+	local b = Instance.new("TextButton");
+	b.Name = "Btn_" .. tostring(p.UserId);
+	b.Size = UDim2.new(1, -12, 0, 34);
+	b.BackgroundColor3 = Color3.fromRGB(34, 34, 34);
+	b.TextColor3 = Color3.fromRGB(236, 236, 236);
+	b.Font = Enum.Font.Gotham;
+	b.TextSize = 14;
+	b.AutoButtonColor = true;
+	b.Parent = ListFrame;
+	Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6);
+	local conn = b.MouseButton1Click:Connect(function()
+		setTarget(p);
+	end);
+	buttons[tostring(p.UserId)] = {btn=b,conn=conn};
+	return b;
+end
+local function getSortedOthers()
+	local out = {};
+	for _, p in ipairs(Players:GetPlayers()) do
+		if (p ~= LocalPlayer) then
+			table.insert(out, {p=p,d=distanceToPlayer(p)});
+		end
+	end
+	table.sort(out, function(a, b)
+		if (a.d == b.d) then
+			return (a.p.DisplayName or a.p.Name) < (b.p.DisplayName or b.p.Name);
+		end
+		return a.d < b.d;
+	end);
+	return out;
+end
+local function updatePlayerButtons()
+	local sorted = getSortedOthers();
+	local seen = {};
+	for i, item in ipairs(sorted) do
+		local p = item.p;
+		local key = tostring(p.UserId);
+		seen[key] = true;
+		local brec = buttons[key];
+		if not brec then
+			local newBtn = createButtonFor(p);
+			buttons[key].btn = newBtn;
+			brec = buttons[key];
+		end
+		if (brec and brec.btn) then
+			local txt = string.format("%s - %.1f studs", p.DisplayName or p.Name, item.d);
+			brec.btn.Text = txt;
+			brec.btn.LayoutOrder = i;
+		end
+	end
+	for userId, rec in pairs(buttons) do
+		local found = seen[userId];
+		if not found then
+			if rec.conn then
+				rec.conn:Disconnect();
+			end
+			if rec.btn then
+				rec.btn:Destroy();
+			end
+			buttons[userId] = nil;
+		end
+	end
+	local itemHeight = 34;
+	local padding = UIListLayout.Padding.Offset;
+	local count = #sorted;
+	ListFrame.CanvasSize = UDim2.new(0, 0, 0, (count * (itemHeight + padding)) + 8);
+	if (not targetPlayer and (#sorted > 0)) then
+		setTarget(sorted[1].p);
+	end
+	highlightSelectedButton();
+end
+Players.PlayerAdded:Connect(function(p)
+	updatePlayerButtons();
+end);
+Players.PlayerRemoving:Connect(function(p)
+	local key = tostring(p.UserId);
+	if (targetPlayer == p) then
+		setTarget(nil);
+		running = false;
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+		ToggleBtn.Text = "Start (G)";
+		restoreCameraState();
+	end
+	updatePlayerButtons();
+end);
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return;
+	end
+	if (input.KeyCode == TOGGLE_KEY) then
+		running = not running;
+		if running then
+			saveCameraState();
+			ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60);
+			ToggleBtn.Text = "Stop (G)";
+		else
+			ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+			ToggleBtn.Text = "Start (G)";
+			restoreCameraState();
+		end
+	end
+end);
+ToggleBtn.MouseButton1Click:Connect(function()
+	running = not running;
+	if running then
+		saveCameraState();
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60);
+		ToggleBtn.Text = "Stop (G)";
+	else
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+		ToggleBtn.Text = "Start (G)";
+		restoreCameraState();
+	end
+end);
+UserInputService.InputChanged:Connect(function(input)
+	if (input.UserInputType == Enum.UserInputType.MouseMovement) then
+		lastMouseMove = tick();
+	end
+end);
+local function computeIdealBehind(targetHRP)
+	local look = targetHRP.CFrame.LookVector;
+	local behindPos = targetHRP.Position - (look * BEHIND_STUDS);
+	behindPos = behindPos + Vector3.new(0, HEIGHT_OFFSET, 0);
+	local frontPoint = behindPos + look;
+	return CFrame.new(behindPos, frontPoint);
+end
+local function tweenPlaceBehind(myHRP, targetHRP)
+	if not (myHRP and targetHRP) then
+		return;
+	end
+	local desiredCf = computeIdealBehind(targetHRP);
+	if activeTween then
+		pcall(function()
+			activeTween:Cancel();
+		end);
+		activeTween = nil;
+	end
+	local duration = math.max(0.03, UPDATE_INTERVAL * TWEEN_DURATION_FACTOR);
+	local info = TweenInfo.new(duration, TWEEN_EASING_STYLE, TWEEN_EASING_DIR, 0, false, 0);
+	local success, tween = pcall(function()
+		return TweenService:Create(myHRP, info, {CFrame=desiredCf});
+	end);
+	if (success and tween) then
+		activeTween = tween;
+		pcall(function()
+			tween:Play();
+		end);
+		tween.Completed:Connect(function()
+			if (activeTween == tween) then
+				activeTween = nil;
+			end
+		end);
+	end
+end
+local cam = Workspace.CurrentCamera;
+RunService:BindToRenderStep("TPBehindCameraAssist", Enum.RenderPriority.Camera.Value + 1, function(dt)
+	cam = Workspace.CurrentCamera;
+	if not running then
+		return;
+	end
+	if not targetPlayer then
+		return;
+	end
+	local tChar = getCharacter(targetPlayer);
+	local tHRP = getHRP(tChar);
+	if not (tChar and tHRP and getHumanoid(tChar) and (getHumanoid(tChar).Health > 0)) then
+		return;
+	end
+	local desiredHrpCf = computeIdealBehind(tHRP);
+	local look = tHRP.CFrame.LookVector;
+	local camOffset = -(look * 2.2) + Vector3.new(0, 1.6, 0);
+	local camPos = desiredHrpCf.Position + camOffset;
+	local lookAt = tHRP.Position + Vector3.new(0, 1.2, 0);
+	local desiredCamCf = CFrame.new(camPos, lookAt);
+	local timeSinceMouse = tick() - lastMouseMove;
+	local assist = ((timeSinceMouse > MOUSE_OVERRIDE_WINDOW) and CAMERA_ASSIST) or CAMERA_MIN_ASSIST;
+	local alpha = smoothAlpha(CAMERA_ASSIST_SCALE * assist, dt);
+	pcall(function()
+		cam.CameraType = Enum.CameraType.Custom;
+		cam.CFrame = cam.CFrame:Lerp(desiredCamCf, alpha);
+	end);
+end);
+RunService.Heartbeat:Connect(function(dt)
+	lastListTick = lastListTick + dt;
+	if (lastListTick >= LIST_REFRESH) then
+		lastListTick = 0;
+		updatePlayerButtons();
+		if targetPlayer then
+			local tChar = getCharacter(targetPlayer);
+			local tHRP = getHRP(tChar);
+			local tHum = getHumanoid(tChar);
+			if not (tChar and tHRP and tHum and (tHum.Health > 0)) then
+				running = false;
+				ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+				ToggleBtn.Text = "Start (G)";
+				restoreCameraState();
+			end
+		end
+	end
+	if not running then
+		return;
+	end
+	if not targetPlayer then
+		return;
+	end
+	local myChar = getCharacter(LocalPlayer);
+	if not myChar then
+		return;
+	end
+	local myHRP = getHRP(myChar);
+	local myHum = getHumanoid(myChar);
+	if (not (myHRP and myHum) or (myHum.Health <= 0)) then
+		return;
+	end
+	local tChar = getCharacter(targetPlayer);
+	local tHRP = getHRP(tChar);
+	local tHum = getHumanoid(tChar);
+	if not (tChar and tHRP and tHum and (tHum.Health > 0)) then
+		running = false;
+		ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+		ToggleBtn.Text = "Start (G)";
+		restoreCameraState();
+		return;
+	end
+	lastTpTick = lastTpTick + dt;
+	if (lastTpTick >= UPDATE_INTERVAL) then
+		lastTpTick = 0;
+		pcall(function()
+			myHum.PlatformStand = false;
+			tweenPlaceBehind(myHRP, tHRP);
+		end);
+	end
+end);
+updatePlayerButtons();
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(72, 160, 80);
+ToggleBtn.Text = "Start (G)";
