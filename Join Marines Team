@@ -19,7 +19,7 @@ end)
 -- Nếu đúng là Blox Fruits hoặc thuộc 1 trong 3 Sea
 if (success and gameInfo and string.find(gameInfo.Name, "Blox Fruits")) or BloxFruits_Seas[game.PlaceId] then
     
-    -- CHỜ ĐÚNG 1.5 GIÂY RỒI MỚI TIẾN HÀNH JOIN PHE
+    -- CHỜ ĐÚNG 0.5 GIÂY RỒI MỚI TIẾN HÀNH JOIN PHE
     task.wait(0.5)
     
     -- Vòng lặp liên tục gửi yêu cầu chọn phe
