@@ -20,7 +20,7 @@ end)
 if (success and gameInfo and string.find(gameInfo.Name, "Blox Fruits")) or BloxFruits_Seas[game.PlaceId] then
     
     -- CHỜ ĐÚNG 1.5 GIÂY RỒI MỚI TIẾN HÀNH JOIN PHE
-    task.wait(1.5)
+    task.wait(0.5)
     
     -- Vòng lặp liên tục gửi yêu cầu chọn phe
     while task.wait(0.5) do
