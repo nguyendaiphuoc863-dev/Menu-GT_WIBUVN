@@ -1,0 +1,39 @@
+-- Chờ game và người chơi tải xong dữ liệu
+repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer
+
+local Player = game.Players.LocalPlayer
+local MarketplaceService = game:GetService("MarketplaceService")
+
+-- Danh sách ID của cả 3 Sea trong Blox Fruits
+local BloxFruits_Seas = {
+    [2747447618] = true, -- Sea 1
+    [4442272183] = true, -- Sea 2
+    [7449423635] = true  -- Sea 3
+}
+
+-- Kiểm tra thông tin tên game
+local success, gameInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(game.PlaceId)
+end)
+
+-- Nếu đúng là Blox Fruits hoặc thuộc 1 trong 3 Sea
+if (success and gameInfo and string.find(gameInfo.Name, "Blox Fruits")) or BloxFruits_Seas[game.PlaceId] then
+    
+    -- Vòng lặp liên tục gửi yêu cầu chọn phe
+    while task.wait(0.5) do
+        -- Kiểm tra nếu đã thuộc phe Marines thành công thì bẻ gãy vòng lặp (Dừng script)
+        if Player.Team and Player.Team.Name == "Marines" then
+            print("Da vao phe Marines thanh cong! Dung script.")
+            break
+        end
+        
+        -- Gửi lệnh chọn phe lên Server (Thực hiện liên tục mỗi 0.5 giây nếu chưa thành công)
+        local selectTeam = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_")
+        if selectTeam then
+            selectTeam:InvokeServer("SetTeam", "Marines")
+        end
+    end
+
+else
+    print("Khong phai Blox Fruits. Script tu dong dung.")
+end
