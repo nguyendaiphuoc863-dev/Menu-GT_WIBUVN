@@ -1,0 +1,68 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local noclip = false
+
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 200, 0, 100)
+frame.Position = UDim2.new(0.5, -100, 0.1, 0)
+frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+
+local creditLabel = Instance.new("TextLabel")
+creditLabel.Size = UDim2.new(1, 0, 0.3, 0)
+creditLabel.Text = "Credits to: Imaginalexiss"
+creditLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+creditLabel.BackgroundTransparency = 1
+creditLabel.Parent = frame
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0.8, 0, 0.3, 0)
+toggleButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+toggleButton.Text = "Toggle Noclip"
+toggleButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+toggleButton.Parent = frame
+
+toggleButton.MouseButton1Click:Connect(function()
+    noclip = not noclip
+    if noclip then
+        toggleButton.Text = "Noclip: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+    else
+        toggleButton.Text = "Noclip: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+    end
+end)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Size = UDim2.new(0.8, 0, 0.3, 0)
+closeButton.Position = UDim2.new(0.1, 0, 0.75, 0)
+closeButton.Text = "Close"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+closeButton.Parent = frame
+
+closeButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+RunService.Stepped:Connect(function()
+    if noclip and character then
+        for _, v in pairs(character:GetDescendants()) do
+            if v:IsA("BasePart") and v.CanCollide then
+                v.CanCollide = false
+            end
+        end
+    end
+end)
