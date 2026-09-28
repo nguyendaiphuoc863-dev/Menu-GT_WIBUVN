@@ -1,0 +1,789 @@
+local PLAYER_ESP = false
+local GEN_ESP = false
+local ITEM_ESP = false
+local FULLBRIGHT = false
+local AUTO_GEN = false
+
+local KILLER_COLOR = Color3.fromRGB(255, 0, 0)
+local SURVIVOR_COLOR = Color3.fromRGB(255, 255, 255)
+local GEN_COLOR = Color3.fromRGB(0, 255, 0)
+local ITEM_COLOR = Color3.fromRGB(0, 175, 255)
+local FRIEND_COLOR = Color3.fromRGB(255, 255, 0)
+local SPECTATE_COLOR = Color3.fromRGB(124, 124, 124)
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local PlayersFolder = workspace:WaitForChild("Players")
+local KillersFolder = PlayersFolder:WaitForChild("Killers")
+local SurvivorsFolder = PlayersFolder:WaitForChild("Survivors")
+local SpectatingFolder = PlayersFolder:WaitForChild("Spectating")
+
+local MapFolder = workspace:WaitForChild("Map")
+local Ingame = MapFolder:WaitForChild("Ingame")
+
+local GEN_CACHE = {}
+local OLD_SETTINGS = {}
+local GEN_CONNECTION = nil
+local ITEM_CONNECTION = nil
+local AUTO_GEN_THREAD = nil
+local PLAYER_CONNECTION = nil
+
+local SPEED_ENABLED = false
+local SPEED_MULTIPLIER = 1.5
+local SPEED_CONNECTION = nil
+local NORMAL_WALK_SPEED = 16
+
+for _, v in pairs(workspace:GetDescendants()) do
+	if v:IsA("Highlight") then
+		v:Destroy()
+	end
+end
+
+local oldMenu = CoreGui:FindFirstChild("MENU_HACK_FORSAKEN")
+
+if oldMenu then
+	oldMenu:SetAttribute("Destroyed", true)
+	oldMenu:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MENU_HACK_FORSAKEN"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.DisplayOrder = 999999
+ScreenGui.Parent = CoreGui
+ScreenGui:SetAttribute("Destroyed", false)
+
+ScreenGui.Destroying:Connect(function()
+	PLAYER_ESP = false
+	GEN_ESP = false
+	ITEM_ESP = false
+	FULLBRIGHT = false
+	AUTO_GEN = false
+	SPEED_ENABLED = false
+
+	if PLAYER_CONNECTION then
+		task.cancel(PLAYER_CONNECTION)
+		PLAYER_CONNECTION = nil
+	end
+
+	if GEN_CONNECTION then
+		task.cancel(GEN_CONNECTION)
+		GEN_CONNECTION = nil
+	end
+
+	if AUTO_GEN_THREAD then
+		task.cancel(AUTO_GEN_THREAD)
+		AUTO_GEN_THREAD = nil
+	end
+
+	if SPEED_CONNECTION then
+		SPEED_CONNECTION:Disconnect()
+		SPEED_CONNECTION = nil
+	end
+
+	if ITEM_CONNECTION then
+		ITEM_CONNECTION:Disconnect()
+		ITEM_CONNECTION = nil
+	end
+
+	removePlayerESP()
+	removeGenESP()
+	removeItemESP()
+end)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 225, 0, 225)
+MainFrame.Position = UDim2.new(0.1, 0, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+MainFrame.Active = true
+
+local Frame = Instance.new("ScrollingFrame", MainFrame)
+Frame.Size = UDim2.new(1, -10, 1, -40)
+Frame.Position = UDim2.new(0, 5, 0, 30)
+Frame.BackgroundTransparency = 1
+Frame.CanvasSize = UDim2.new(0, 0, 0, 500)
+Frame.ScrollBarThickness = 6
+Frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(0.715, -10, 0, 25)
+Title.Position = UDim2.new(0, 5, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "MENU GAME (FORSAKEN)"
+Title.TextScaled = true
+Title.TextColor3 = Color3.new(1,1,1)
+
+local Credit = Instance.new("TextLabel", MainFrame)
+Credit.Size = UDim2.new(1, -10, 0, 15)
+Credit.Position = UDim2.new(0, 5, 1.075, -18)
+Credit.BackgroundTransparency = 1
+Credit.Text = "By: GT_WIBUVN"
+Credit.TextScaled = true
+Credit.TextColor3 = Color3.new(1,1,1)
+Credit.TextStrokeTransparency = 0.5
+Credit.Font = Enum.Font.GothamBold
+
+local PlayerBtn = Instance.new("TextButton", Frame)
+PlayerBtn.Size = UDim2.new(0.45, 0, 0, 30)
+PlayerBtn.Position = UDim2.new(0.04, 0, 0.1, 0)
+PlayerBtn.Text = "PLAYER: OFF"
+PlayerBtn.TextScaled = true
+PlayerBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+PlayerBtn.TextColor3 = Color3.new(1,1,1)
+
+local GenBtn = Instance.new("TextButton", Frame)
+GenBtn.Size = UDim2.new(0.45, 0, 0, 30)
+GenBtn.Position = UDim2.new(0.51, 0, 0.1, 0)
+GenBtn.Text = "GEN: OFF"
+GenBtn.TextScaled = true
+GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+GenBtn.TextColor3 = Color3.new(1,1,1)
+
+local AutoGenBtn = Instance.new("TextButton", Frame)
+AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
+AutoGenBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
+AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+AutoGenBtn.TextScaled = true
+AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+AutoGenBtn.TextColor3 = Color3.new(1,1,1)
+
+local ItemBtn = Instance.new("TextButton", Frame)
+ItemBtn.Size = UDim2.new(0.45, 0, 0, 30)
+ItemBtn.Position = UDim2.new(0.04, 0, 0.35, 0)
+ItemBtn.Text = "ITEM: OFF"
+ItemBtn.TextScaled = true
+ItemBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+ItemBtn.TextColor3 = Color3.new(1,1,1)
+
+local FullbrightBtn = Instance.new("TextButton", Frame)
+FullbrightBtn.Size = UDim2.new(0.45, 0, 0, 30)
+FullbrightBtn.Position = UDim2.new(0.51, 0, 0.35, 0)
+FullbrightBtn.Text = "FULLBRIGHT: OFF"
+FullbrightBtn.TextScaled = true
+FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+FullbrightBtn.TextColor3 = Color3.new(1,1,1)
+
+local SpeedBtn = Instance.new("TextButton", Frame)
+SpeedBtn.Size = UDim2.new(0.9, 0, 0, 30)
+SpeedBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
+SpeedBtn.Text = "SPEED: OFF"
+SpeedBtn.TextScaled = true
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+SpeedBtn.TextColor3 = Color3.new(1,1,1)
+
+local SpeedInput = Instance.new("TextBox", Frame)
+SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
+SpeedInput.Position = UDim2.new(0.05, 0, 1.1, 0)
+SpeedInput.Text = "1.5x"
+SpeedInput.PlaceholderText = "Speed Multiplier"
+SpeedInput.TextScaled = true
+SpeedInput.BackgroundColor3 = Color3.fromRGB(45,45,45)
+SpeedInput.TextColor3 = Color3.fromRGB(255,180,0)
+SpeedInput.ClearTextOnFocus = false
+
+local MinimizeBtn = Instance.new("TextButton", MainFrame)
+MinimizeBtn.Size = UDim2.new(0, 20, 0, 20)
+MinimizeBtn.Position = UDim2.new(1, -70, 0.025, 0)
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextScaled = true
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+MinimizeBtn.TextColor3 = Color3.new(1,1,1)
+
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 40, 0, 20)
+CloseBtn.Position = UDim2.new(1, -45, 0.025, 0)
+CloseBtn.Text = "X"
+CloseBtn.TextScaled = true
+CloseBtn.BackgroundColor3 = Color3.fromRGB(255,0,0)
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+
+local RestoreBtn = Instance.new("TextButton", ScreenGui)
+RestoreBtn.Size = UDim2.new(0, 45, 0, 45)
+RestoreBtn.Position = MainFrame.Position
+RestoreBtn.Text = "+"
+RestoreBtn.TextScaled = true
+RestoreBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+RestoreBtn.TextColor3 = Color3.new(1,1,1)
+RestoreBtn.Visible = false
+RestoreBtn.Active = true
+
+local RestoreCorner = Instance.new("UICorner", RestoreBtn)
+RestoreCorner.CornerRadius = UDim.new(1, 0)
+
+local dragging, dragInput, mousePos, framePos
+local restoreDragging, restoreDragInput, restoreMousePos, restoreFramePos
+
+local savedMainPosition = MainFrame.Position
+local savedRestorePosition = RestoreBtn.Position
+
+MainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		mousePos = input.Position
+		framePos = MainFrame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+				savedMainPosition = MainFrame.Position
+			end
+		end)
+	end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - mousePos
+
+		MainFrame.Position = UDim2.new(
+			framePos.X.Scale,
+			framePos.X.Offset + delta.X,
+			framePos.Y.Scale,
+			framePos.Y.Offset + delta.Y
+		)
+
+		savedMainPosition = MainFrame.Position
+	end
+end)
+
+RestoreBtn.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		restoreDragging = true
+		restoreMousePos = input.Position
+		restoreFramePos = RestoreBtn.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				restoreDragging = false
+				savedRestorePosition = RestoreBtn.Position
+			end
+		end)
+	end
+end)
+
+RestoreBtn.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		restoreDragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == restoreDragInput and restoreDragging then
+		local delta = input.Position - restoreMousePos
+
+		RestoreBtn.Position = UDim2.new(
+			restoreFramePos.X.Scale,
+			restoreFramePos.X.Offset + delta.X,
+			restoreFramePos.Y.Scale,
+			restoreFramePos.Y.Offset + delta.Y
+		)
+
+		savedRestorePosition = RestoreBtn.Position
+	end
+end)
+
+local function getPlayerTeamColor(player)
+	if not player.Character then return nil end
+
+	for _, v in pairs(SpectatingFolder:GetChildren()) do
+		if v == player.Character then
+			return SPECTATE_COLOR
+		end
+	end
+
+	if LocalPlayer:IsFriendsWith(player.UserId) then
+		return FRIEND_COLOR
+	end
+
+	for _, v in pairs(KillersFolder:GetChildren()) do
+		if v == player.Character then
+			return KILLER_COLOR
+		end
+	end
+
+	for _, v in pairs(SurvivorsFolder:GetChildren()) do
+		if v == player.Character then
+			return SURVIVOR_COLOR
+		end
+	end
+
+	return nil
+end
+
+local function applyPlayerESP()
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character then
+			local color = getPlayerTeamColor(player)
+
+			if color then
+				local esp = player.Character:FindFirstChild("ESP_HIGHLIGHT")
+
+				if not esp then
+					esp = Instance.new("Highlight")
+					esp.Name = "ESP_HIGHLIGHT"
+					esp.Adornee = player.Character
+					esp.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					esp.Parent = player.Character
+				end
+
+				esp.FillColor = color
+			else
+				local esp = player.Character:FindFirstChild("ESP_HIGHLIGHT")
+				if esp then
+					esp:Destroy()
+				end
+			end
+		end
+	end
+end
+
+local function startPlayerESP()
+	if PLAYER_CONNECTION then return end
+
+	PLAYER_CONNECTION = task.spawn(function()
+		while PLAYER_ESP and not ScreenGui:GetAttribute("Destroyed") do
+			applyPlayerESP()
+			task.wait(0.25)
+		end
+		
+		PLAYER_CONNECTION = nil
+	end)
+end
+
+local function removePlayerESP()
+	if PLAYER_CONNECTION then
+		task.cancel(PLAYER_CONNECTION)
+		PLAYER_CONNECTION = nil
+	end
+
+	for _, player in pairs(Players:GetPlayers()) do
+		if player.Character then
+			local esp = player.Character:FindFirstChild("ESP_HIGHLIGHT")
+			if esp then
+				esp:Destroy()
+			end
+		end
+	end
+end
+
+local function enableFullbright()
+	OLD_SETTINGS.Brightness = Lighting.Brightness
+	OLD_SETTINGS.ClockTime = Lighting.ClockTime
+	OLD_SETTINGS.FogEnd = Lighting.FogEnd
+	OLD_SETTINGS.GlobalShadows = Lighting.GlobalShadows
+	OLD_SETTINGS.Ambient = Lighting.Ambient
+
+	Lighting.Brightness = 3
+	Lighting.ClockTime = 12
+	Lighting.FogEnd = 100000
+	Lighting.GlobalShadows = false
+	Lighting.Ambient = Color3.new(1,1,1)
+end
+
+local function disableFullbright()
+	if next(OLD_SETTINGS) then
+		Lighting.Brightness = OLD_SETTINGS.Brightness
+		Lighting.ClockTime = OLD_SETTINGS.ClockTime
+		Lighting.FogEnd = OLD_SETTINGS.FogEnd
+		Lighting.GlobalShadows = OLD_SETTINGS.GlobalShadows
+		Lighting.Ambient = OLD_SETTINGS.Ambient
+	end
+end
+
+local function startSpeed()
+	if SPEED_CONNECTION then return end
+
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid then
+		NORMAL_WALK_SPEED = humanoid.WalkSpeed
+	end
+
+	SPEED_CONNECTION = RunService.RenderStepped:Connect(function(deltaTime)
+		if not SPEED_ENABLED then return end
+
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+		if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
+			local dragFactor = (SPEED_MULTIPLIER - 1) * NORMAL_WALK_SPEED * deltaTime
+			local moveOffset = humanoid.MoveDirection * dragFactor
+
+			rootPart.CFrame = rootPart.CFrame + moveOffset
+		end
+	end)
+end
+
+local function stopSpeed()
+	SPEED_ENABLED = false
+
+	if SPEED_CONNECTION then
+		SPEED_CONNECTION:Disconnect()
+		SPEED_CONNECTION = nil
+	end
+
+	local character = LocalPlayer.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid and humanoid.Health > 0 then
+		humanoid.WalkSpeed = NORMAL_WALK_SPEED
+	end
+end
+
+local function updateGeneratorESP(gen)
+	local highlight = gen:FindFirstChild("GEN_ESP")
+	local progress = gen:FindFirstChild("Progress", true)
+
+	if highlight and progress then
+		if progress.Value >= 100 then
+			highlight.FillColor = GEN_COLOR
+		else
+			highlight.FillColor = Color3.fromRGB(255,175,0)
+		end
+	end
+end
+
+
+local function doGenerator(gen)
+	local main = gen:FindFirstChild("Main")
+	if not main then return end
+
+	local prompt = main:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+
+	local progress = gen:FindFirstChild("Progress", true)
+	if progress and progress.Value >= 100 then
+		updateGeneratorESP(gen)
+		return
+	end
+
+	local remotes = gen:FindFirstChild("Remotes") or gen.Parent:FindFirstChild("Remotes")
+	if not remotes then return end
+
+	for _, re in pairs(remotes:GetChildren()) do
+		if re:IsA("RemoteEvent") and re.Name == "RE" then
+			pcall(function()
+				re:FireServer(prompt)
+			end)
+		end
+	end
+
+	task.delay(0.5, function()
+		updateGeneratorESP(gen)
+	end)
+end
+
+local function startAutoGen()
+	AUTO_GEN_THREAD = task.spawn(function()
+		while AUTO_GEN and not ScreenGui:GetAttribute("Destroyed") do
+			pcall(function()
+				local mapFolder = workspace:FindFirstChild("Map")
+				if mapFolder then
+					local ingame = mapFolder:FindFirstChild("Ingame")
+					if ingame and ingame:FindFirstChild("Map") then
+						for _, gen in pairs(ingame.Map:GetChildren()) do
+							if gen:IsA("Model") and (gen.Name == "Generator" or gen:FindFirstChild("Progress", true)) then
+								doGenerator(gen)
+								task.wait(0.1)
+							end
+						end
+					end
+				end
+			end)
+			task.wait(1)
+		end
+
+		AUTO_GEN_THREAD = nil
+	end)
+end
+
+local function setupGenerator(gen)
+	if not gen:IsA("Model") then return end
+	if GEN_CACHE[gen] then return end
+
+	local highlight = gen:FindFirstChild("GEN_ESP")
+	if not highlight then
+		highlight = Instance.new("Highlight")
+		highlight.Name = "GEN_ESP"
+		highlight.Adornee = gen
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Parent = gen
+	end
+
+	GEN_CACHE[gen] = true
+
+	local progress = gen:FindFirstChild("Progress", true)
+	if progress then
+		local function updateColor()
+			if highlight and highlight.Parent then
+				highlight.FillColor = (progress.Value >= 100)
+					and GEN_COLOR
+					or Color3.fromRGB(255,175,0)
+			end
+		end
+		
+		updateColor()
+
+		if not progress:FindFirstChild("ESP_CONNECTION") then
+			local tag = Instance.new("BoolValue")
+			tag.Name = "ESP_CONNECTION"
+			tag.Parent = progress
+
+			progress:GetPropertyChangedSignal("Value"):Connect(updateColor)
+		end
+	end
+end
+
+local function applyGenESP()
+	if GEN_CONNECTION then return end
+	
+	GEN_CONNECTION = task.spawn(function()
+		while GEN_ESP and not ScreenGui:GetAttribute("Destroyed") do
+			pcall(function()
+				local mapFolder = workspace:FindFirstChild("Map")
+				local ingame = mapFolder and mapFolder:FindFirstChild("Ingame")
+				local currentMap = ingame and ingame:FindFirstChild("Map")
+				
+				if currentMap then
+					for _, obj in pairs(currentMap:GetChildren()) do
+						if obj:IsA("Model") and obj.Name == "Generator" then
+							setupGenerator(obj) 
+						end
+					end
+				end
+			end)
+			task.wait(1) 
+		end
+
+		GEN_CONNECTION = nil
+	end)
+end
+
+local function removeGenESP()
+	if GEN_CONNECTION then
+		task.cancel(GEN_CONNECTION)
+		GEN_CONNECTION = nil
+	end
+
+	for gen, _ in pairs(GEN_CACHE) do
+		if gen and gen:FindFirstChild("GEN_ESP") then
+			gen.GEN_ESP:Destroy()
+		end
+	end
+
+	GEN_CACHE = {}
+end
+
+local function setupItemESP(tool)
+	if not tool:IsA("Tool") then return end
+	if tool:FindFirstChild("ITEM_ESP") then return end
+
+	local h = Instance.new("Highlight")
+	h.Name = "ITEM_ESP"
+	h.Adornee = tool
+	h.FillColor = ITEM_COLOR
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = tool
+end
+
+local function applyItemESP()
+	for _, obj in pairs(Ingame:GetDescendants()) do
+		if obj:IsA("Tool") then
+			setupItemESP(obj)
+		end
+	end
+
+	if not ITEM_CONNECTION then
+		ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
+			if ScreenGui:GetAttribute("Destroyed") then
+				ITEM_CONNECTION:Disconnect()
+				ITEM_CONNECTION = nil
+				return
+			end
+
+			if ITEM_ESP and obj:IsA("Tool") then
+				setupItemESP(obj)
+			end
+		end)
+	end
+end
+
+local function removeItemESP()
+	for _, obj in pairs(workspace:GetDescendants()) do
+		local h = obj:FindFirstChild("ITEM_ESP")
+		if h then h:Destroy() end
+	end
+
+	if ITEM_CONNECTION then
+		ITEM_CONNECTION:Disconnect()
+		ITEM_CONNECTION = nil
+	end
+end
+
+PlayerBtn.MouseButton1Click:Connect(function()
+	PLAYER_ESP = not PLAYER_ESP
+
+	if PLAYER_ESP then
+		PlayerBtn.Text = "PLAYER ESP: ON"
+		PlayerBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		startPlayerESP()
+	else
+		PlayerBtn.Text = "PLAYER ESP: OFF"
+		PlayerBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		removePlayerESP()
+	end
+end)
+
+GenBtn.MouseButton1Click:Connect(function()
+	GEN_ESP = not GEN_ESP
+
+	if GEN_ESP then
+		GenBtn.Text = "GEN ESP: ON"
+		GenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		applyGenESP()
+	else
+		GenBtn.Text = "GEN ESP: OFF"
+		GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		removeGenESP()
+	end
+end)
+
+ItemBtn.MouseButton1Click:Connect(function()
+	ITEM_ESP = not ITEM_ESP
+
+	if ITEM_ESP then
+		ItemBtn.Text = "ITEM ESP: ON"
+		ItemBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		applyItemESP()
+	else
+		ItemBtn.Text = "ITEM ESP: OFF"
+		ItemBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		removeItemESP()
+	end
+end)
+
+FullbrightBtn.MouseButton1Click:Connect(function()
+	FULLBRIGHT = not FULLBRIGHT
+
+	if FULLBRIGHT then
+		FullbrightBtn.Text = "FULLBRIGHT: ON"
+		FullbrightBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		enableFullbright()
+	else
+		FullbrightBtn.Text = "FULLBRIGHT: OFF"
+		FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		disableFullbright()
+	end
+end)
+
+AutoGenBtn.MouseButton1Click:Connect(function()
+	AUTO_GEN = not AUTO_GEN
+	if AUTO_GEN then
+		AutoGenBtn.Text = "AUTO FIX GEN: ON"
+		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		startAutoGen()
+	else
+		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		if AUTO_GEN_THREAD then
+			task.cancel(AUTO_GEN_THREAD)
+		end
+	end
+end)
+
+SpeedBtn.MouseButton1Click:Connect(function()
+	SPEED_ENABLED = not SPEED_ENABLED
+
+	if SPEED_ENABLED then
+		SpeedBtn.Text = "SPEED: ON"
+		SpeedBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+		startSpeed()
+	else
+		SpeedBtn.Text = "SPEED: OFF"
+		SpeedBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+		stopSpeed()
+	end
+end)
+
+SpeedInput.FocusLost:Connect(function()
+	local text = SpeedInput.Text:gsub("%s+", ""):lower():gsub("x$", "")
+	local value = tonumber(text)
+
+	if value and value >= 1 then
+		SPEED_MULTIPLIER = value
+		SpeedInput.Text = tostring(value) .. "x"
+	else
+		SpeedInput.Text = tostring(SPEED_MULTIPLIER) .. "x"
+	end
+end)
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+	savedMainPosition = MainFrame.Position
+	RestoreBtn.Position = savedRestorePosition
+
+	MainFrame.Visible = false
+	RestoreBtn.Visible = true
+end)
+
+RestoreBtn.MouseButton1Click:Connect(function()
+	MainFrame.Position = savedMainPosition
+	RestoreBtn.Position = savedRestorePosition
+
+	MainFrame.Visible = true
+	RestoreBtn.Visible = false
+end)
+
+CloseBtn.MouseButton1Click:Connect(function()
+	PLAYER_ESP = false
+	GEN_ESP = false
+	ITEM_ESP = false
+	AUTO_GEN = false
+	SPEED_ENABLED = false
+	
+	stopSpeed()
+	removePlayerESP()
+	removeGenESP()
+	removeItemESP()
+
+	if FULLBRIGHT then
+		disableFullbright()
+		FULLBRIGHT = false
+	end
+
+	ScreenGui:Destroy()
+end)
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function()
+		if PLAYER_ESP then
+			task.wait(0.5)
+			applyPlayerESP()
+		end
+	end)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+	player.CharacterAdded:Connect(function()
+		if PLAYER_ESP then
+			task.wait(0.5)
+			applyPlayerESP()
+		end
+	end)
+end
