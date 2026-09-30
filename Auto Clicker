@@ -1,0 +1,119 @@
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+
+-- Tạo hoặc xóa GUI cũ nếu đã tồn tại để tránh trùng lặp
+if CoreGui:FindFirstChild("AutoClicker_Gui") then
+    CoreGui["AutoClicker_Gui"]:Destroy()
+end
+
+-- Khởi tạo Giao diện
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoClicker_Gui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = CoreGui
+
+-- Khung chính (Frame)
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 220, 0, 110)
+mainFrame.Position = UDim2.new(0.5, -110, 0.4, -55)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true -- Giữ chuột vào khung để di chuyển vị trí
+mainFrame.Parent = screenGui
+
+-- Bo góc khung chính
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+-- Tiêu đề GUI
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0, 30)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Auto Clicker [P]"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.TextSize = 16
+titleLabel.Parent = mainFrame
+
+-- Nút bấm Bật/Tắt trên GUI
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 180, 0, 45)
+toggleButton.Position = UDim2.new(0.5, -90, 0, 40)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+toggleButton.Text = "Auto Click: OFF"
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Font = Enum.Font.SourceSansBold
+toggleButton.TextSize = 16
+toggleButton.Parent = mainFrame
+
+-- Bo góc nút bấm
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = toggleButton
+
+-- Dòng chú thích nhỏ phía dưới nút
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, 0, 0, 20)
+infoLabel.Position = UDim2.new(0, 0, 0, 85)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "Nhấn phím P hoặc click nút để bật/tắt"
+infoLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+infoLabel.Font = Enum.Font.SourceSansItalic
+infoLabel.TextSize = 12
+infoLabel.Parent = mainFrame
+
+-- Logic xử lý Auto Click
+local autoClickActive = false
+local clickDelay = 0.01 -- Tốc độ click (0.01 giây/lần). Bạn có thể chỉnh sửa số này.
+
+-- Hàm thực hiện hành động Bật / Tắt
+local function toggleAutoClick()
+    autoClickActive = not autoClickActive
+    
+    if autoClickActive then
+        toggleButton.Text = "Auto Click: ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 75, 75) -- Đổi sang màu đỏ khi đang bật
+        
+        -- Chạy vòng lặp click ngầm (Thực hiện click chuột trái)
+        task.spawn(function()
+            while autoClickActive do
+                -- Giả lập click chuột trái bằng VirtualUser (An toàn và không bị dính chuột)
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton1(Vector2.new(0, 0))
+                
+                task.wait(clickDelay)
+            end
+        end)
+    else
+        toggleButton.Text = "Auto Click: OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255) -- Trả về màu xanh khi tắt
+    end
+end
+
+-- 1. Sự kiện khi Click trực tiếp vào nút trên GUI
+toggleButton.MouseButton1Click:Connect(function()
+    toggleAutoClick()
+end)
+
+-- 2. Sự kiện khi nhấn phím P trên bàn phím
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    -- Nếu đang gõ chat hoặc đang tương tác với UI hệ thống thì bỏ qua phím P
+    if gameProcessedEvent then return end
+    
+    if input.KeyCode == Enum.KeyCode.P then
+        toggleAutoClick()
+    end
+end)
+
+-- Tự động ngăn game kick người chơi vì treo máy (Anti-AFK)
+player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+end)
