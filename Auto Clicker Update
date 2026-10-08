@@ -358,7 +358,7 @@ local function toggleGui()
 	restoreBtn.Visible = not mainFrame.Visible
 
 	for _, data in ipairs(positions) do
-		if data.button then
+		if data.button and data.button.Parent then
 			data.button.Visible = mainFrame.Visible
 		end
 	end
@@ -401,7 +401,7 @@ task.spawn(function()
 			local data = positions[currentIndex]
 			local button = data and data.button
 
-			if button and button.Parent and button.Visible then
+			if button and button.Parent then
 				local absolutePosition = button.AbsolutePosition
 				local absoluteSize = button.AbsoluteSize
 
@@ -439,7 +439,13 @@ task.spawn(function()
 
 				currentIndex += 1
 			else
+				-- Chỉ xóa khỏi danh sách nếu Button thực sự bị Destroy
 				table.remove(positions, currentIndex)
+				updateNumbers()
+
+				if currentIndex > #positions then
+					currentIndex = 1
+				end
 			end
 		else
 			currentIndex = 1
