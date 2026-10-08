@@ -251,16 +251,9 @@ local function createPositionButton(pos)
 	local index = #positions + 1
 
 	local button = Instance.new("TextButton")
+	button.AnchorPoint = Vector2.new(0.5, 0.5)
 	button.Size = UDim2.new(0, 45, 0, 45)
-
-	-- Đặt tâm TextButton đúng vào vị trí người dùng chạm/click
-	button.Position = UDim2.new(
-		0,
-		pos.X - 22.5,
-		0,
-		pos.Y - 22.5
-	)
-
+	button.Position = UDim2.new(0, pos.X, 0, pos.Y)
 	button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 	button.BackgroundTransparency = 0.1
 	button.Text = tostring(index)
@@ -285,7 +278,6 @@ local function createPositionButton(pos)
 
 	table.insert(positions, data)
 
-	-- Click/Tap vào TextButton = xóa nó
 	button.Activated:Connect(function()
 		for i, item in ipairs(positions) do
 			if item == data then
@@ -297,24 +289,17 @@ local function createPositionButton(pos)
 end
 
 -- 16. CHỌN VỊ TRÍ PC + MOBILE
+
 pickBtn.Activated:Connect(function()
 	isPicking = true
-
 	pickBtn.Text = "Nhấp màn hình..."
 	pickBtn.BackgroundColor3 = Color3.fromRGB(230, 150, 0)
 end)
 
-UIS.InputBegan:Connect(function(input, processed)
+local function selectPosition(p)
 	if not isPicking then
 		return
 	end
-
-	if input.UserInputType ~= Enum.UserInputType.MouseButton1
-		and input.UserInputType ~= Enum.UserInputType.Touch then
-		return
-	end
-
-	local p = input.Position
 
 	-- Không chọn vào GUI chính
 	local mainPos = mainFrame.AbsolutePosition
@@ -324,11 +309,10 @@ UIS.InputBegan:Connect(function(input, processed)
 		and p.X <= mainPos.X + mainSize.X
 		and p.Y >= mainPos.Y
 		and p.Y <= mainPos.Y + mainSize.Y then
-
 		return
 	end
 
-	-- Không tạo vị trí mới khi chạm vào nút restore
+	-- Không chọn vào nút hiện GUI
 	if restoreBtn.Visible then
 		local restorePos = restoreBtn.AbsolutePosition
 		local restoreSize = restoreBtn.AbsoluteSize
@@ -337,27 +321,50 @@ UIS.InputBegan:Connect(function(input, processed)
 			and p.X <= restorePos.X + restoreSize.X
 			and p.Y >= restorePos.Y
 			and p.Y <= restorePos.Y + restoreSize.Y then
-
 			return
 		end
 	end
 
-	-- Không tạo marker chồng lên marker cũ
-	local guiObjects = GuiService:GetGuiObjectsAtPosition(p.X, p.Y)
-
-	for _, guiObject in ipairs(guiObjects) do
-		for _, data in ipairs(positions) do
-			if guiObject == data.button then
-				return
-			end
-		end
-	end
-
+	-- Tạo TextButton tại vị trí chạm/click
 	createPositionButton(Vector2.new(p.X, p.Y))
 
 	isPicking = false
 	pickBtn.Text = "Chọn vị trí"
 	pickBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+end
+
+-- PC
+UIS.InputBegan:Connect(function(input, processed)
+	if not isPicking then
+		return
+	end
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		selectPosition(Vector2.new(
+			input.Position.X,
+			input.Position.Y
+		))
+	end
+end)
+
+-- MOBILE
+UIS.TouchTap:Connect(function(touchPositions, processed)
+	if not isPicking then
+		return
+	end
+
+	if processed then
+		return
+	end
+
+	local touch = touchPositions[1]
+
+	if touch then
+		selectPosition(Vector2.new(
+			touch.X,
+			touch.Y
+		))
+	end
 end)
 
 -- 17. XÓA TẤT CẢ
