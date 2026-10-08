@@ -1,99 +1,448 @@
 local Players, UIS, VIM = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("VirtualInputManager")
-local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+local CoreGui = game:GetService("CoreGui")
 
 local TOGGLE_KEY, GUI_KEY = Enum.KeyCode.H, Enum.KeyCode.K
-local clickDelay, targetPos, markerLabel, isAutoClicking, isToggling = 0.5, nil, nil, false, false
+local clickDelay, isAutoClicking, isPicking, isToggling = 0.5, false, false, false
+local positions = {}
+local buttons = {}
 
--- 1. DỌN SẠCH BẢN CŨ
-if playerGui:FindFirstChild("CustomAutoClickerGui") then playerGui.CustomAutoClickerGui:Destroy() end
+-- 1. DỌN BẢN CŨ
+if CoreGui:FindFirstChild("CustomAutoClickerGui") then
+	CoreGui.CustomAutoClickerGui:Destroy()
+end
 
--- 2. TẠO GIAO DIỆN KHUNG CHÍNH
-local controlGui = Instance.new("ScreenGui", playerGui) controlGui.Name = "CustomAutoClickerGui" controlGui.ResetOnSpawn = false
-local mainFrame = Instance.new("Frame", controlGui) mainFrame.Size = UDim2.new(0, 200, 0, 180) mainFrame.Position = UDim2.new(0.1, 0, 0.2, 0) mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40) mainFrame.Active = true
+-- 2. GUI CHÍNH
+local controlGui = Instance.new("ScreenGui")
+controlGui.Name = "CustomAutoClickerGui"
+controlGui.ResetOnSpawn = false
+controlGui.Parent = CoreGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 180)
+mainFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.Active = true
+mainFrame.Parent = controlGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
--- Hàm tạo Text nhanh + Bật Scaled tự động co giãn chữ
 local function createText(class, parent, size, pos, txt, font, bold)
-	local obj = Instance.new(class, parent) obj.Size, obj.Position, obj.Text, obj.Font = size, pos, txt, font
-	obj.TextColor3, obj.TextScaled, obj.BackgroundTransparency = Color3.fromRGB(255, 255, 255), true, 1
-	if bold then obj.Font = Enum.Font.SourceSansBold end return obj
+	local obj = Instance.new(class)
+	obj.Size = size
+	obj.Position = pos
+	obj.Text = txt
+	obj.Font = font
+	obj.TextColor3 = Color3.fromRGB(255, 255, 255)
+	obj.TextScaled = true
+	obj.BackgroundTransparency = 1
+	obj.Parent = parent
+	if bold then
+		obj.Font = Enum.Font.SourceSansBold
+	end
+	return obj
 end
 
-local title = createText("TextLabel", mainFrame, UDim2.new(1, -55, 0, 30), UDim2.new(0, 10, 0, 0), "Clicker Custom Pro", Enum.Font.SourceSans, true) title.TextXAlignment = Enum.TextXAlignment.Left
+local title = createText(
+	"TextLabel",
+	mainFrame,
+	UDim2.new(1, -55, 0, 30),
+	UDim2.new(0, 10, 0, 0),
+	"Clicker Custom Pro",
+	Enum.Font.SourceSans,
+	true
+)
+title.TextXAlignment = Enum.TextXAlignment.Left
 
--- Nút X (Xóa sạch) & Nút - (Ẩn tạm)
-local closeBtn = Instance.new("TextButton", mainFrame) closeBtn.Size, closeBtn.Position, closeBtn.BackgroundColor3, closeBtn.Text, closeBtn.TextScaled, closeBtn.TextColor3, closeBtn.Font = UDim2.new(0, 20, 0, 20), UDim2.new(1, -25, 0, 5), Color3.fromRGB(200, 50, 50), "X", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
-local miniBtn = Instance.new("TextButton", mainFrame) miniBtn.Size, miniBtn.Position, miniBtn.BackgroundColor3, miniBtn.Text, miniBtn.TextScaled, miniBtn.TextColor3, miniBtn.Font = UDim2.new(0, 20, 0, 20), UDim2.new(1, -50, 0, 5), Color3.fromRGB(220, 130, 20), "-", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(0, 4)
+-- XÓA GUI
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 20, 0, 20)
+closeBtn.Position = UDim2.new(1, -25, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextScaled = true
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.Parent = mainFrame
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
 
--- Nút Hiện lại nhanh
-local restoreBtn = Instance.new("TextButton", controlGui) restoreBtn.Size, restoreBtn.Position, restoreBtn.BackgroundColor3, restoreBtn.Text, restoreBtn.TextScaled, restoreBtn.TextColor3, restoreBtn.Font, restoreBtn.Visible = UDim2.new(0, 90, 0, 30), UDim2.new(0, 10, 0, 10), Color3.fromRGB(0, 150, 100), "Hiện GUI [K]", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold, false Instance.new("UICorner", restoreBtn).CornerRadius = UDim.new(0, 6)
+-- ẨN GUI
+local miniBtn = Instance.new("TextButton")
+miniBtn.Size = UDim2.new(0, 20, 0, 20)
+miniBtn.Position = UDim2.new(1, -50, 0, 5)
+miniBtn.BackgroundColor3 = Color3.fromRGB(220, 130, 20)
+miniBtn.Text = "-"
+miniBtn.TextScaled = true
+miniBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniBtn.Font = Enum.Font.SourceSansBold
+miniBtn.Parent = mainFrame
+Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(0, 4)
 
--- Các nút tính năng bên trong
-local pickBtn = Instance.new("TextButton", mainFrame) pickBtn.Size, pickBtn.Position, pickBtn.BackgroundColor3, pickBtn.Text, pickBtn.TextScaled, pickBtn.TextColor3, pickBtn.Font = UDim2.new(0, 115, 0, 30), UDim2.new(0, 10, 0, 35), Color3.fromRGB(0, 120, 200), "Chọn vị trí", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold Instance.new("UICorner", pickBtn).CornerRadius = UDim.new(0, 6)
-local delBtn = Instance.new("TextButton", mainFrame) delBtn.Size, delBtn.Position, delBtn.BackgroundColor3, delBtn.Text, delBtn.TextScaled, delBtn.TextColor3, delBtn.Font = UDim2.new(0, 55, 0, 30), UDim2.new(0, 135, 0, 35), Color3.fromRGB(120, 120, 120), "Xóa", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold Instance.new("UICorner", delBtn).CornerRadius = UDim.new(0, 6)
+-- NÚT HIỆN GUI
+local restoreBtn = Instance.new("TextButton")
+restoreBtn.Size = UDim2.new(0, 90, 0, 30)
+restoreBtn.Position = UDim2.new(0, 10, 0, 10)
+restoreBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
+restoreBtn.Text = "Hiện GUI [K]"
+restoreBtn.TextScaled = true
+restoreBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+restoreBtn.Font = Enum.Font.SourceSansBold
+restoreBtn.Visible = false
+restoreBtn.Parent = controlGui
+Instance.new("UICorner", restoreBtn).CornerRadius = UDim.new(0, 6)
 
--- TextBox Delay
-local delayFrame = Instance.new("Frame", mainFrame) delayFrame.Size, delayFrame.Position, delayFrame.BackgroundTransparency = UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 0, 75), 1
-local delayHint = createText("TextLabel", delayFrame, UDim2.new(0, 90, 1, 0), UDim2.new(0, 0, 0, 0), "Delay (giây):", Enum.Font.SourceSans, false) delayHint.TextColor3, delayHint.TextXAlignment = Color3.fromRGB(200, 200, 200), Enum.TextXAlignment.Left
-local delayBox = Instance.new("TextBox", delayFrame) delayBox.Size, delayBox.Position, delayBox.BackgroundColor3, delayBox.Text, delayBox.TextScaled, delayBox.TextColor3, delayBox.Font, delayBox.ClearTextOnFocus = UDim2.new(0, 85, 1, 0), UDim2.new(0, 95, 0, 0), Color3.fromRGB(25, 25, 25), "0.5", true, Color3.fromRGB(50, 255, 50), Enum.Font.SourceSansBold, false Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 4)
+-- NÚT CHỌN VỊ TRÍ
+local pickBtn = Instance.new("TextButton")
+pickBtn.Size = UDim2.new(0, 115, 0, 30)
+pickBtn.Position = UDim2.new(0, 10, 0, 35)
+pickBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+pickBtn.Text = "Chọn vị trí"
+pickBtn.TextScaled = true
+pickBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+pickBtn.Font = Enum.Font.SourceSansBold
+pickBtn.Parent = mainFrame
+Instance.new("UICorner", pickBtn).CornerRadius = UDim.new(0, 6)
 
--- Nút Bật/Tắt chính
-local toggleBtn = Instance.new("TextButton", mainFrame) toggleBtn.Size, toggleBtn.Position, toggleBtn.BackgroundColor3, toggleBtn.Text, toggleBtn.TextScaled, toggleBtn.TextColor3, toggleBtn.Font = UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, 120), Color3.fromRGB(200, 50, 50), "Auto Click: OFF [H]", true, Color3.fromRGB(255, 255, 255), Enum.Font.SourceSansBold Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+-- NÚT XÓA TẤT CẢ
+local delBtn = Instance.new("TextButton")
+delBtn.Size = UDim2.new(0, 55, 0, 30)
+delBtn.Position = UDim2.new(0, 135, 0, 35)
+delBtn.BackgroundColor3 = Color3.fromRGB(120, 120, 120)
+delBtn.Text = "Xóa Tất Cả"
+delBtn.TextScaled = true
+delBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+delBtn.Font = Enum.Font.SourceSansBold
+delBtn.Parent = mainFrame
+Instance.new("UICorner", delBtn).CornerRadius = UDim.new(0, 6)
 
--- 3. KÉO THẢ DI CHUYỂN
+-- DELAY
+local delayFrame = Instance.new("Frame")
+delayFrame.Size = UDim2.new(1, -20, 0, 30)
+delayFrame.Position = UDim2.new(0, 10, 0, 75)
+delayFrame.BackgroundTransparency = 1
+delayFrame.Parent = mainFrame
+
+local delayHint = createText(
+	"TextLabel",
+	delayFrame,
+	UDim2.new(0, 90, 1, 0),
+	UDim2.new(0, 0, 0, 0),
+	"Delay (giây):",
+	Enum.Font.SourceSans,
+	false
+)
+delayHint.TextColor3 = Color3.fromRGB(200, 200, 200)
+delayHint.TextXAlignment = Enum.TextXAlignment.Left
+
+local delayBox = Instance.new("TextBox")
+delayBox.Size = UDim2.new(0, 85, 1, 0)
+delayBox.Position = UDim2.new(0, 95, 0, 0)
+delayBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+delayBox.Text = "0.5"
+delayBox.TextScaled = true
+delayBox.TextColor3 = Color3.fromRGB(50, 255, 50)
+delayBox.Font = Enum.Font.SourceSansBold
+delayBox.ClearTextOnFocus = false
+delayBox.Parent = delayFrame
+Instance.new("UICorner", delayBox).CornerRadius = UDim.new(0, 4)
+
+-- AUTO CLICK
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, -20, 0, 40)
+toggleBtn.Position = UDim2.new(0, 10, 0, 120)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+toggleBtn.Text = "Auto Click: OFF [H]"
+toggleBtn.TextScaled = true
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.SourceSansBold
+toggleBtn.Parent = mainFrame
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 6)
+
+-- 3. KÉO GUI
 local dragStart, startPos, dragInput
-mainFrame.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then dragStart, startPos = i.Position, mainFrame.Position i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then dragStart = nil end end) end end)
-mainFrame.InputChanged:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseMovement then dragInput = i end end)
-UIS.InputChanged:Connect(function(i) if i == dragInput and dragStart then local d = i.Position - dragStart mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end)
 
--- 4. CHỌN VÀ XÓA TỌA ĐỘ VỊ TRÍ
-pickBtn.MouseButton1Click:Connect(function() isPicking = true pickBtn.Text, pickBtn.BackgroundColor3 = "Nhấp màn hình...", Color3.fromRGB(230, 150, 0) end)
-local function clearMarker() if markerLabel then markerLabel:Destroy() markerLabel = nil end targetPos = nil end
-delBtn.MouseButton1Click:Connect(function() clearMarker() if isAutoClicking then isAutoClicking = false toggleBtn.Text, toggleBtn.BackgroundColor3 = "Auto Click: OFF [H]", Color3.fromRGB(200, 50, 50) end end)
+mainFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragStart = input.Position
+		startPos = mainFrame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragStart = nil
+			end
+		end)
+	end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragStart then
+		local delta = input.Position - dragStart
+
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- 4. CẬP NHẬT SỐ THỨ TỰ
+local function updateNumbers()
+	for i, data in ipairs(positions) do
+		if data.button and data.button.Parent then
+			data.button.Text = tostring(i)
+		end
+	end
+end
+
+-- 5. XÓA MỘT VỊ TRÍ
+local function removePosition(index)
+	if not positions[index] then
+		return
+	end
+
+	local data = positions[index]
+
+	if data.button then
+		data.button:Destroy()
+	end
+
+	table.remove(positions, index)
+	updateNumbers()
+end
+
+-- 6. TẠO TEXTBUTTON TẠI VỊ TRÍ
+local function createPositionButton(pos)
+	local index = #positions + 1
+
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(0, 45, 0, 45)
+	button.Position = UDim2.new(0, pos.X - 22.5, 0, pos.Y - 22.5)
+	button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	button.BackgroundTransparency = 0.1
+	button.Text = tostring(index)
+	button.TextScaled = true
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.Font = Enum.Font.SourceSansBold
+	button.ZIndex = 20
+	button.AutoButtonColor = true
+	button.Parent = controlGui
+
+	Instance.new("UICorner", button).CornerRadius = UDim.new(1, 0)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 2
+	stroke.Color = Color3.fromRGB(255, 255, 255)
+	stroke.Parent = button
+
+	local data = {
+		button = button
+	}
+
+	table.insert(positions, data)
+
+	button.MouseButton1Click:Connect(function()
+		for i, item in ipairs(positions) do
+			if item == data then
+				removePosition(i)
+				break
+			end
+		end
+	end)
+end
+
+-- 7. CHỌN VỊ TRÍ
+pickBtn.MouseButton1Click:Connect(function()
+	isPicking = true
+	pickBtn.Text = "Nhấp màn hình..."
+	pickBtn.BackgroundColor3 = Color3.fromRGB(230, 150, 0)
+end)
 
 UIS.InputBegan:Connect(function(input)
-	if not isPicking then return end
+	if not isPicking then
+		return
+	end
+
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		local p = input.Position
-		if p.X >= mainFrame.AbsolutePosition.X and p.X <= mainFrame.AbsolutePosition.X + mainFrame.AbsoluteSize.X and p.Y >= mainFrame.AbsolutePosition.Y and p.Y <= mainFrame.AbsolutePosition.Y + mainFrame.AbsoluteSize.Y then return end
-		clearMarker() targetPos = Vector2.new(p.X, p.Y + 58)
-		markerLabel = Instance.new("TextLabel", controlGui) markerLabel.Size, markerLabel.Position, markerLabel.BackgroundColor3, markerLabel.Text, markerLabel.TextScaled, markerLabel.TextColor3 = UDim2.new(0, 50, 0, 20), UDim2.new(0, p.X - 25, 0, p.Y - 10), Color3.fromRGB(255, 0, 0), "[ X ]", true, Color3.fromRGB(255, 255, 255)
-		markerLabel.Font, markerLabel.ZIndex = Enum.Font.SourceSansBold, 10 Instance.new("UICorner", markerLabel).CornerRadius = UDim.new(0, 4)
-		isPicking, pickBtn.Text, pickBtn.BackgroundColor3 = false, "Chọn vị trí", Color3.fromRGB(0, 120, 200)
+
+		-- Không cho chọn vào GUI chính
+		if p.X >= mainFrame.AbsolutePosition.X
+			and p.X <= mainFrame.AbsolutePosition.X + mainFrame.AbsoluteSize.X
+			and p.Y >= mainFrame.AbsolutePosition.Y
+			and p.Y <= mainFrame.AbsolutePosition.Y + mainFrame.AbsoluteSize.Y then
+			return
+		end
+
+		createPositionButton(Vector2.new(p.X, p.Y))
+
+		isPicking = false
+		pickBtn.Text = "Chọn vị trí"
+		pickBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
 	end
 end)
-delayBox.FocusLost:Connect(function() clickDelay = tonumber(delayBox.Text) or clickDelay delayBox.Text = tostring(clickDelay) end)
 
--- 5. HÀM DÙNG CHUNG BẬT/TẮT ĐỒNG BỘ 100%
-local function toggleAutoClick()
-	if isToggling then return end
-	if not markerLabel or not targetPos then
-		isToggling = true local oldColor = toggleBtn.BackgroundColor3 toggleBtn.Text, toggleBtn.BackgroundColor3 = "Chưa chọn vị trí!", Color3.fromRGB(230, 120, 0) task.wait(0.8)
-		toggleBtn.Text, toggleBtn.BackgroundColor3, isToggling = isAutoClicking and "Auto Click: ON [H]" or "Auto Click: OFF [H]", oldColor, false return
+-- 8. XÓA TẤT CẢ
+delBtn.MouseButton1Click:Connect(function()
+	for _, data in ipairs(positions) do
+		if data.button then
+			data.button:Destroy()
+		end
 	end
+
+	table.clear(positions)
+
+	if isAutoClicking then
+		isAutoClicking = false
+		toggleBtn.Text = "Auto Click: OFF [H]"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	end
+end)
+
+-- 9. DELAY
+delayBox.FocusLost:Connect(function()
+	local value = tonumber(delayBox.Text)
+
+	if value and value > 0 then
+		clickDelay = value
+	else
+		delayBox.Text = tostring(clickDelay)
+	end
+end)
+
+-- 10. BẬT/TẮT AUTO CLICK
+local function toggleAutoClick()
+	if isToggling then
+		return
+	end
+
+	if #positions == 0 then
+		isToggling = true
+
+		local oldText = toggleBtn.Text
+		local oldColor = toggleBtn.BackgroundColor3
+
+		toggleBtn.Text = "Chưa có vị trí!"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(230, 120, 0)
+
+		task.wait(0.8)
+
+		toggleBtn.Text = oldText
+		toggleBtn.BackgroundColor3 = oldColor
+		isToggling = false
+
+		return
+	end
+
 	isAutoClicking = not isAutoClicking
-	toggleBtn.Text, toggleBtn.BackgroundColor3 = isAutoClicking and "Auto Click: ON [H]" or "Auto Click: OFF [H]", isAutoClicking and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+
+	if isAutoClicking then
+		toggleBtn.Text = "Auto Click: ON [H]"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+	else
+		toggleBtn.Text = "Auto Click: OFF [H]"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	end
 end
+
 toggleBtn.MouseButton1Click:Connect(toggleAutoClick)
 
--- 6. ẨN VÀ TẮT GUI
-local function toggleGui() mainFrame.Visible = not mainFrame.Visible restoreBtn.Visible = not mainFrame.Visible if markerLabel then markerLabel.Visible = mainFrame.Visible end end
-miniBtn.MouseButton1Click:Connect(toggleGui) restoreBtn.MouseButton1Click:Connect(toggleGui)
-closeBtn.MouseButton1Click:Connect(function() controlGui:Destroy() script:Destroy() end)
+-- 11. ẨN / HIỆN GUI
+local function toggleGui()
+	mainFrame.Visible = not mainFrame.Visible
+	restoreBtn.Visible = not mainFrame.Visible
 
--- 7. LẮNG NGHE PHÍM TẮT BÀN PHÍM
-UIS.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if input.KeyCode == TOGGLE_KEY then toggleAutoClick()
-	elseif input.KeyCode == GUI_KEY then toggleGui() end
+	for _, data in ipairs(positions) do
+		if data.button then
+			data.button.Visible = mainFrame.Visible
+		end
+	end
+end
+
+miniBtn.MouseButton1Click:Connect(toggleGui)
+restoreBtn.MouseButton1Click:Connect(toggleGui)
+
+-- 12. ĐÓNG GUI
+closeBtn.MouseButton1Click:Connect(function()
+	controlGui:Destroy()
+	script:Destroy()
 end)
 
--- 8. VÒNG LẶP CLICK NGẦM
+-- 13. PHÍM TẮT
+UIS.InputBegan:Connect(function(input, processed)
+	if processed then
+		return
+	end
+
+	if input.KeyCode == TOGGLE_KEY then
+		toggleAutoClick()
+	elseif input.KeyCode == GUI_KEY then
+		toggleGui()
+	end
+end)
+
+-- 14. AUTO CLICK THEO THỨ TỰ
 task.spawn(function()
-	while true do task.wait(clickDelay)
-		if isAutoClicking and targetPos and markerLabel then
-			VIM:SendMouseButtonEvent(targetPos.X, targetPos.Y, 0, true, game, 0) task.wait(0.01)
-			VIM:SendMouseButtonEvent(targetPos.X, targetPos.Y, 0, false, game, 0)
+	local currentIndex = 1
+
+	while controlGui.Parent do
+		task.wait(clickDelay)
+
+		if isAutoClicking and #positions > 0 then
+			if currentIndex > #positions then
+				currentIndex = 1
+			end
+
+			local data = positions[currentIndex]
+			local button = data and data.button
+
+			if button and button.Parent and button.Visible then
+				local absolutePosition = button.AbsolutePosition
+				local absoluteSize = button.AbsoluteSize
+
+				local clickX = absolutePosition.X + absoluteSize.X / 2
+				local clickY = absolutePosition.Y + absoluteSize.Y / 2
+
+				local oldColor = button.BackgroundColor3
+				button.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+
+				VIM:SendMouseButtonEvent(
+					clickX,
+					clickY,
+					0,
+					true,
+					game,
+					0
+				)
+
+				task.wait(0.01)
+
+				VIM:SendMouseButtonEvent(
+					clickX,
+					clickY,
+					0,
+					false,
+					game,
+					0
+				)
+
+				task.delay(0.08, function()
+					if button and button.Parent then
+						button.BackgroundColor3 = oldColor
+					end
+				end)
+
+				currentIndex += 1
+			else
+				table.remove(positions, currentIndex)
+			end
+		else
+			currentIndex = 1
 		end
 	end
 end)
