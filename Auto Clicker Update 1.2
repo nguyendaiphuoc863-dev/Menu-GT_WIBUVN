@@ -288,83 +288,78 @@ local function createPositionButton(pos)
 	end)
 end
 
--- 16. CHỌN VỊ TRÍ PC + MOBILE
-
-pickBtn.Activated:Connect(function()
-	isPicking = true
-	pickBtn.Text = "Nhấp màn hình..."
-	pickBtn.BackgroundColor3 = Color3.fromRGB(230, 150, 0)
-end)
-
-local function selectPosition(p)
-	if not isPicking then
-		return
-	end
-
-	-- Không chọn vào GUI chính
-	local mainPos = mainFrame.AbsolutePosition
-	local mainSize = mainFrame.AbsoluteSize
-
-	if p.X >= mainPos.X
-		and p.X <= mainPos.X + mainSize.X
-		and p.Y >= mainPos.Y
-		and p.Y <= mainPos.Y + mainSize.Y then
-		return
-	end
-
-	-- Không chọn vào nút hiện GUI
-	if restoreBtn.Visible then
-		local restorePos = restoreBtn.AbsolutePosition
-		local restoreSize = restoreBtn.AbsoluteSize
-
-		if p.X >= restorePos.X
-			and p.X <= restorePos.X + restoreSize.X
-			and p.Y >= restorePos.Y
-			and p.Y <= restorePos.Y + restoreSize.Y then
-			return
-		end
-	end
-
-	-- Tạo TextButton tại vị trí chạm/click
-	createPositionButton(Vector2.new(p.X, p.Y))
-
+local function finishPicking()
 	isPicking = false
 	pickBtn.Text = "Chọn vị trí"
 	pickBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
 end
 
+local function isInsideGui(pos, gui)
+	if not gui or not gui.Parent or not gui.Visible then
+		return false
+	end
+
+	local guiPos = gui.AbsolutePosition
+	local guiSize = gui.AbsoluteSize
+
+	return pos.X >= guiPos.X
+		and pos.X <= guiPos.X + guiSize.X
+		and pos.Y >= guiPos.Y
+		and pos.Y <= guiPos.Y + guiSize.Y
+end
+
+local function trySelectPosition(pos)
+	if not isPicking then
+		return
+	end
+
+	-- Không đánh dấu lên GUI chính
+	if isInsideGui(pos, mainFrame) then
+		return
+	end
+
+	-- Không đánh dấu lên nút K khi GUI đang thu nhỏ
+	if isInsideGui(pos, restoreBtn) then
+		return
+	end
+
+	-- Không đánh dấu lên marker cũ
+	for _, data in ipairs(positions) do
+		if data.button and data.button.Parent and data.button.Visible then
+			if isInsideGui(pos, data.button) then
+				return
+			end
+		end
+	end
+
+	createPositionButton(Vector2.new(pos.X, pos.Y))
+	finishPicking()
+end
+
+pickBtn.Activated:Connect(function()
+	isPicking = true
+	pickBtn.Text = "Chạm màn hình..."
+	pickBtn.BackgroundColor3 = Color3.fromRGB(230, 150, 0)
+end)
+
 -- PC
-UIS.InputBegan:Connect(function(input, processed)
+UIS.InputBegan:Connect(function(input)
 	if not isPicking then
 		return
 	end
 
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		selectPosition(Vector2.new(
-			input.Position.X,
-			input.Position.Y
-		))
+		trySelectPosition(input.Position)
 	end
 end)
 
 -- MOBILE
-UIS.TouchTap:Connect(function(touchPositions, processed)
+UIS.TouchEnded:Connect(function(input)
 	if not isPicking then
 		return
 	end
 
-	if processed then
-		return
-	end
-
-	local touch = touchPositions[1]
-
-	if touch then
-		selectPosition(Vector2.new(
-			touch.X,
-			touch.Y
-		))
-	end
+	trySelectPosition(input.Position)
 end)
 
 -- 17. XÓA TẤT CẢ
