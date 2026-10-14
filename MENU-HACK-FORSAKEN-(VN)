@@ -3,6 +3,8 @@ local GEN_ESP = false
 local ITEM_ESP = false
 local FULLBRIGHT = false
 local AUTO_GEN = false
+local STAMINA_ENABLED = false
+local ANTISTUN_ENABLED = false
 
 local KILLER_COLOR = Color3.fromRGB(255, 0, 0)
 local SURVIVOR_COLOR = Color3.fromRGB(255, 255, 255)
@@ -25,6 +27,15 @@ local SpectatingFolder = PlayersFolder:WaitForChild("Spectating")
 
 local MapFolder = workspace:WaitForChild("Map")
 local Ingame = MapFolder:WaitForChild("Ingame")
+
+local SprintScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):WaitForChild("Sprinting")
+local SprintModule = require(SprintScript)
+
+local StatusModule
+pcall(function()
+    local StatusScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Status") or ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("State")
+    if StatusScript then StatusModule = require(StatusScript) end
+end)
 
 local GEN_CACHE = {}
 local OLD_SETTINGS = {}
@@ -60,133 +71,19 @@ ScreenGui.DisplayOrder = 999999
 ScreenGui.Parent = CoreGui
 ScreenGui:SetAttribute("Destroyed", false)
 
-ScreenGui.Destroying:Connect(function()
-	PLAYER_ESP = false
-	GEN_ESP = false
-	ITEM_ESP = false
-	FULLBRIGHT = false
-	AUTO_GEN = false
-	SPEED_ENABLED = false
-
-	if PLAYER_CONNECTION then
-		task.cancel(PLAYER_CONNECTION)
-		PLAYER_CONNECTION = nil
-	end
-
-	if GEN_CONNECTION then
-		task.cancel(GEN_CONNECTION)
-		GEN_CONNECTION = nil
-	end
-
-	if AUTO_GEN_THREAD then
-		task.cancel(AUTO_GEN_THREAD)
-		AUTO_GEN_THREAD = nil
-	end
-
-	if SPEED_CONNECTION then
-		SPEED_CONNECTION:Disconnect()
-		SPEED_CONNECTION = nil
-	end
-
-	if ITEM_CONNECTION then
-		ITEM_CONNECTION:Disconnect()
-		ITEM_CONNECTION = nil
-	end
-
-	removePlayerESP()
-	removeGenESP()
-	removeItemESP()
-end)
-
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 225, 0, 225)
+MainFrame.Size = UDim2.new(0, 250, 0, 260)
 MainFrame.Position = UDim2.new(0.1, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 MainFrame.Active = true
 
-local Frame = Instance.new("ScrollingFrame", MainFrame)
-Frame.Size = UDim2.new(1, -10, 1, -40)
-Frame.Position = UDim2.new(0, 5, 0, 30)
-Frame.BackgroundTransparency = 1
-Frame.CanvasSize = UDim2.new(0, 0, 0, 500)
-Frame.ScrollBarThickness = 6
-Frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
 local Title = Instance.new("TextLabel", MainFrame)
-Title.Size = UDim2.new(0.715, -10, 0, 25)
+Title.Size = UDim2.new(1, -80, 0, 25)
 Title.Position = UDim2.new(0, 5, 0, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "MENU GAME (FORSAKEN)"
 Title.TextScaled = true
 Title.TextColor3 = Color3.new(1,1,1)
-
-local Credit = Instance.new("TextLabel", MainFrame)
-Credit.Size = UDim2.new(1, -10, 0, 15)
-Credit.Position = UDim2.new(0, 5, 1.075, -18)
-Credit.BackgroundTransparency = 1
-Credit.Text = "By: GT_WIBUVN"
-Credit.TextScaled = true
-Credit.TextColor3 = Color3.new(1,1,1)
-Credit.TextStrokeTransparency = 0.5
-Credit.Font = Enum.Font.GothamBold
-
-local PlayerBtn = Instance.new("TextButton", Frame)
-PlayerBtn.Size = UDim2.new(0.45, 0, 0, 30)
-PlayerBtn.Position = UDim2.new(0.04, 0, 0.1, 0)
-PlayerBtn.Text = "PLAYER: OFF"
-PlayerBtn.TextScaled = true
-PlayerBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-PlayerBtn.TextColor3 = Color3.new(1,1,1)
-
-local GenBtn = Instance.new("TextButton", Frame)
-GenBtn.Size = UDim2.new(0.45, 0, 0, 30)
-GenBtn.Position = UDim2.new(0.51, 0, 0.1, 0)
-GenBtn.Text = "GEN: OFF"
-GenBtn.TextScaled = true
-GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-GenBtn.TextColor3 = Color3.new(1,1,1)
-
-local AutoGenBtn = Instance.new("TextButton", Frame)
-AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
-AutoGenBtn.Position = UDim2.new(0.05, 0, 0.6, 0)
-AutoGenBtn.Text = "AUTO FIX GEN: OFF"
-AutoGenBtn.TextScaled = true
-AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-AutoGenBtn.TextColor3 = Color3.new(1,1,1)
-
-local ItemBtn = Instance.new("TextButton", Frame)
-ItemBtn.Size = UDim2.new(0.45, 0, 0, 30)
-ItemBtn.Position = UDim2.new(0.04, 0, 0.35, 0)
-ItemBtn.Text = "ITEM: OFF"
-ItemBtn.TextScaled = true
-ItemBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-ItemBtn.TextColor3 = Color3.new(1,1,1)
-
-local FullbrightBtn = Instance.new("TextButton", Frame)
-FullbrightBtn.Size = UDim2.new(0.45, 0, 0, 30)
-FullbrightBtn.Position = UDim2.new(0.51, 0, 0.35, 0)
-FullbrightBtn.Text = "FULLBRIGHT: OFF"
-FullbrightBtn.TextScaled = true
-FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-FullbrightBtn.TextColor3 = Color3.new(1,1,1)
-
-local SpeedBtn = Instance.new("TextButton", Frame)
-SpeedBtn.Size = UDim2.new(0.9, 0, 0, 30)
-SpeedBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
-SpeedBtn.Text = "SPEED: OFF"
-SpeedBtn.TextScaled = true
-SpeedBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-SpeedBtn.TextColor3 = Color3.new(1,1,1)
-
-local SpeedInput = Instance.new("TextBox", Frame)
-SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
-SpeedInput.Position = UDim2.new(0.05, 0, 1.1, 0)
-SpeedInput.Text = "1.5x"
-SpeedInput.PlaceholderText = "Speed Multiplier"
-SpeedInput.TextScaled = true
-SpeedInput.BackgroundColor3 = Color3.fromRGB(45,45,45)
-SpeedInput.TextColor3 = Color3.fromRGB(255,180,0)
-SpeedInput.ClearTextOnFocus = false
 
 local MinimizeBtn = Instance.new("TextButton", MainFrame)
 MinimizeBtn.Size = UDim2.new(0, 20, 0, 20)
@@ -204,6 +101,129 @@ CloseBtn.TextScaled = true
 CloseBtn.BackgroundColor3 = Color3.fromRGB(255,0,0)
 CloseBtn.TextColor3 = Color3.new(1,1,1)
 
+local TabBar = Instance.new("Frame", MainFrame)
+TabBar.Size = UDim2.new(1, -10, 0, 30)
+TabBar.Position = UDim2.new(0, 5, 0, 28)
+TabBar.BackgroundTransparency = 1
+
+local MainTab = Instance.new("TextButton", TabBar)
+MainTab.Size = UDim2.new(0.5, -2, 1, 0)
+MainTab.Position = UDim2.new(0, 0, 0, 0)
+MainTab.Text = "MAIN"
+MainTab.TextScaled = true
+MainTab.BackgroundColor3 = Color3.fromRGB(0,170,0)
+MainTab.TextColor3 = Color3.new(1,1,1)
+
+local ESPTab = Instance.new("TextButton", TabBar)
+ESPTab.Size = UDim2.new(0.5, -2, 1, 0)
+ESPTab.Position = UDim2.new(0.5, 2, 0, 0)
+ESPTab.Text = "ESP"
+ESPTab.TextScaled = true
+ESPTab.BackgroundColor3 = Color3.fromRGB(60,60,60)
+ESPTab.TextColor3 = Color3.new(1,1,1)
+
+local MainPage = Instance.new("ScrollingFrame", MainFrame)
+MainPage.Size = UDim2.new(1, -10, 1, -83)
+MainPage.Position = UDim2.new(0, 5, 0, 63)
+MainPage.BackgroundTransparency = 1
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 180)
+MainPage.ScrollBarThickness = 6
+MainPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+MainPage.Visible = true
+
+local ESPPage = Instance.new("ScrollingFrame", MainFrame)
+ESPPage.Size = UDim2.new(1, -10, 1, -83)
+ESPPage.Position = UDim2.new(0, 5, 0, 63)
+ESPPage.BackgroundTransparency = 1
+ESPPage.CanvasSize = UDim2.new(0, 0, 0, 150)
+ESPPage.ScrollBarThickness = 6
+ESPPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ESPPage.Visible = false
+
+local FullbrightBtn = Instance.new("TextButton", MainPage)
+FullbrightBtn.Size = UDim2.new(0.9, 0, 0, 30)
+FullbrightBtn.Position = UDim2.new(0.05, 0, 0.05, 0)
+FullbrightBtn.Text = "FULLBRIGHT: OFF"
+FullbrightBtn.TextScaled = true
+FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+FullbrightBtn.TextColor3 = Color3.new(1,1,1)
+
+local AutoGenBtn = Instance.new("TextButton", MainPage)
+AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
+AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
+AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+AutoGenBtn.TextScaled = true
+AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+AutoGenBtn.TextColor3 = Color3.new(1,1,1)
+
+local SpeedBtn = Instance.new("TextButton", MainPage)
+SpeedBtn.Size = UDim2.new(0.9, 0, 0, 30)
+SpeedBtn.Position = UDim2.new(0.05, 0, 0.45, 0)
+SpeedBtn.Text = "SPEED: OFF"
+SpeedBtn.TextScaled = true
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+SpeedBtn.TextColor3 = Color3.new(1,1,1)
+
+local SpeedInput = Instance.new("TextBox", MainPage)
+SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
+SpeedInput.Position = UDim2.new(0.05, 0, 0.65, 0)
+SpeedInput.Text = "1.5x"
+SpeedInput.PlaceholderText = "Speed Multiplier"
+SpeedInput.TextScaled = true
+SpeedInput.BackgroundColor3 = Color3.fromRGB(45,45,45)
+SpeedInput.TextColor3 = Color3.fromRGB(255,180,0)
+SpeedInput.ClearTextOnFocus = false
+
+local StaminaBtn = Instance.new("TextButton", MainPage)
+StaminaBtn.Size = UDim2.new(0.9, 0, 0, 30)
+StaminaBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
+StaminaBtn.Text = "INFINITE STAMINA: OFF"
+StaminaBtn.TextScaled = true
+StaminaBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+StaminaBtn.TextColor3 = Color3.new(1,1,1)
+
+local AntiStunBtn = Instance.new("TextButton", MainPage)
+AntiStunBtn.Size = UDim2.new(0.9, 0, 0, 30)
+AntiStunBtn.Position = UDim2.new(0.05, 0, 1.05, 0)
+AntiStunBtn.Text = "ANTI STUN: OFF"
+AntiStunBtn.TextScaled = true
+AntiStunBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+AntiStunBtn.TextColor3 = Color3.new(1,1,1)
+
+local PlayerBtn = Instance.new("TextButton", ESPPage)
+PlayerBtn.Size = UDim2.new(0.9, 0, 0, 30)
+PlayerBtn.Position = UDim2.new(0.05, 0, 0.05, 0)
+PlayerBtn.Text = "PLAYER ESP: OFF"
+PlayerBtn.TextScaled = true
+PlayerBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+PlayerBtn.TextColor3 = Color3.new(1,1,1)
+
+local GenBtn = Instance.new("TextButton", ESPPage)
+GenBtn.Size = UDim2.new(0.9, 0, 0, 30)
+GenBtn.Position = UDim2.new(0.05, 0, 0.30, 0)
+GenBtn.Text = "GEN ESP: OFF"
+GenBtn.TextScaled = true
+GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+GenBtn.TextColor3 = Color3.new(1,1,1)
+
+local ItemBtn = Instance.new("TextButton", ESPPage)
+ItemBtn.Size = UDim2.new(0.9, 0, 0, 30)
+ItemBtn.Position = UDim2.new(0.05, 0, 0.55, 0)
+ItemBtn.Text = "ITEM ESP: OFF"
+ItemBtn.TextScaled = true
+ItemBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+ItemBtn.TextColor3 = Color3.new(1,1,1)
+
+local Credit = Instance.new("TextLabel", MainFrame)
+Credit.Size = UDim2.new(1, -10, 0, 15)
+Credit.Position = UDim2.new(0, 5, 1.075, -18)
+Credit.BackgroundTransparency = 1
+Credit.Text = "By: GT_WIBUVN"
+Credit.TextScaled = true
+Credit.TextColor3 = Color3.new(1,1,1)
+Credit.TextStrokeTransparency = 0.5
+Credit.Font = Enum.Font.GothamBold
+
 local RestoreBtn = Instance.new("TextButton", ScreenGui)
 RestoreBtn.Size = UDim2.new(0, 45, 0, 45)
 RestoreBtn.Position = MainFrame.Position
@@ -217,83 +237,92 @@ RestoreBtn.Active = true
 local RestoreCorner = Instance.new("UICorner", RestoreBtn)
 RestoreCorner.CornerRadius = UDim.new(1, 0)
 
-local dragging, dragInput, mousePos, framePos
-local restoreDragging, restoreDragInput, restoreMousePos, restoreFramePos
+MainTab.MouseButton1Click:Connect(function()
+	MainPage.Visible = true
+	ESPPage.Visible = false
+	MainTab.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	ESPTab.BackgroundColor3 = Color3.fromRGB(60,60,60)
+end)
 
+ESPTab.MouseButton1Click:Connect(function()
+	MainPage.Visible = false
+	ESPPage.Visible = true
+	MainTab.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	ESPTab.BackgroundColor3 = Color3.fromRGB(0,170,0)
+end)
+
+local RestoreCorner = Instance.new("UICorner", RestoreBtn)
+RestoreCorner.CornerRadius = UDim.new(1, 0)
+
+
+local dragging = false
+local dragStart = nil
+local startPosition = nil
+local dragTarget = nil
+local dragInputConnection = nil
 local savedMainPosition = MainFrame.Position
 local savedRestorePosition = RestoreBtn.Position
 
+local function isPointerInput(input)
+	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function beginDrag(input, target)
+	if not isPointerInput(input) then return end
+	dragging = true
+	dragStart = input.Position
+	startPosition = target.Position
+	dragTarget = target
+end
+
+local function updateDrag(input)
+	if not dragging or not dragTarget or not dragStart or not startPosition then return end
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+	local delta = input.Position - dragStart
+	dragTarget.Position = UDim2.new(
+		startPosition.X.Scale,
+		startPosition.X.Offset + delta.X,
+		startPosition.Y.Scale,
+		startPosition.Y.Offset + delta.Y
+	)
+	if dragTarget == MainFrame then
+		savedMainPosition = dragTarget.Position
+	else
+		savedRestorePosition = dragTarget.Position
+	end
+end
+
+local function endDrag(input)
+	if not dragging then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+		dragTarget = nil
+		dragStart = nil
+		startPosition = nil
+	end
+end
+
 MainFrame.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		mousePos = input.Position
-		framePos = MainFrame.Position
-
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-				savedMainPosition = MainFrame.Position
-			end
-		end)
-	end
-end)
-
-MainFrame.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement then
-		dragInput = input
-	end
-end)
-
-UIS.InputChanged:Connect(function(input)
-	if input == dragInput and dragging then
-		local delta = input.Position - mousePos
-
-		MainFrame.Position = UDim2.new(
-			framePos.X.Scale,
-			framePos.X.Offset + delta.X,
-			framePos.Y.Scale,
-			framePos.Y.Offset + delta.Y
-		)
-
-		savedMainPosition = MainFrame.Position
-	end
+	beginDrag(input, MainFrame)
 end)
 
 RestoreBtn.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		restoreDragging = true
-		restoreMousePos = input.Position
-		restoreFramePos = RestoreBtn.Position
-
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				restoreDragging = false
-				savedRestorePosition = RestoreBtn.Position
-			end
-		end)
-	end
-end)
-
-RestoreBtn.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement then
-		restoreDragInput = input
-	end
+	beginDrag(input, RestoreBtn)
 end)
 
 UIS.InputChanged:Connect(function(input)
-	if input == restoreDragInput and restoreDragging then
-		local delta = input.Position - restoreMousePos
-
-		RestoreBtn.Position = UDim2.new(
-			restoreFramePos.X.Scale,
-			restoreFramePos.X.Offset + delta.X,
-			restoreFramePos.Y.Scale,
-			restoreFramePos.Y.Offset + delta.Y
-		)
-
-		savedRestorePosition = RestoreBtn.Position
-	end
+	updateDrag(input)
 end)
+
+UIS.InputEnded:Connect(function(input)
+	endDrag(input)
+end)
+
+
+local function updateStaminaButton()
+	StaminaBtn.Text = STAMINA_ENABLED and "INFINITE STAMINA: ON" or "INFINITE STAMINA: OFF"
+	StaminaBtn.BackgroundColor3 = STAMINA_ENABLED and Color3.fromRGB(0,170,0) or Color3.fromRGB(170,0,0)
+end
 
 local function getPlayerTeamColor(player)
 	if not player.Character then return nil end
@@ -321,6 +350,19 @@ local function getPlayerTeamColor(player)
 	end
 
 	return nil
+end
+
+local RawMetatable = getrawmetatable and getrawmetatable(game)
+if RawMetatable and makewriteable then
+    makewriteable(RawMetatable)
+    local OldIndex = RawMetatable.__index
+    
+    RawMetatable.__index = newcclosure(function(self, key)
+        if STAMINA_ENABLED and tostring(self) == "Humanoid" and (key == "WalkSpeed" or key == "SprintSpeed") then
+            return 16
+        end
+        return OldIndex(self, key)
+    end)
 end
 
 local function applyPlayerESP()
@@ -734,6 +776,32 @@ SpeedInput.FocusLost:Connect(function()
 	end
 end)
 
+StaminaBtn.MouseButton1Click:Connect(function()
+    STAMINA_ENABLED = not STAMINA_ENABLED
+    if STAMINA_ENABLED then
+        StaminaBtn.Text = "Infinite Stamina: ON"
+        StaminaBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+    else
+        StaminaBtn.Text = "Infinite Stamina: OFF"
+        StaminaBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        pcall(function()
+            if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 1 end
+            if SprintModule.DrainRate then SprintModule.DrainRate = 1 end
+        end)
+    end
+end)
+
+AntiStunBtn.MouseButton1Click:Connect(function()
+    ANTISTUN_ENABLED = not ANTISTUN_ENABLED
+    if ANTISTUN_ENABLED then
+        AntiStunBtn.Text = "ANTI STUN: ON"
+        AntiStunBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        AntiStunBtn.Text = "ANTI STUN: OFF"
+        AntiStunBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    end
+end)
+
 MinimizeBtn.MouseButton1Click:Connect(function()
 	savedMainPosition = MainFrame.Position
 	RestoreBtn.Position = savedRestorePosition
@@ -756,6 +824,8 @@ CloseBtn.MouseButton1Click:Connect(function()
 	ITEM_ESP = false
 	AUTO_GEN = false
 	SPEED_ENABLED = false
+    STAMINA_ENABLED = false
+    ANTISTUN_ENABLED = false
 	
 	stopSpeed()
 	removePlayerESP()
@@ -768,6 +838,100 @@ CloseBtn.MouseButton1Click:Connect(function()
 	end
 
 	ScreenGui:Destroy()
+end)
+
+ScreenGui.Destroying:Connect(function()
+	PLAYER_ESP = false
+	GEN_ESP = false
+	ITEM_ESP = false
+	AUTO_GEN = false
+	SPEED_ENABLED = false
+    STAMINA_ENABLED = false
+    ANTISTUN_ENABLED = false
+
+	if PLAYER_CONNECTION then
+		task.cancel(PLAYER_CONNECTION)
+		PLAYER_CONNECTION = nil
+	end
+
+	if GEN_CONNECTION then
+		task.cancel(GEN_CONNECTION)
+		GEN_CONNECTION = nil
+	end
+
+	if AUTO_GEN_THREAD then
+		task.cancel(AUTO_GEN_THREAD)
+		AUTO_GEN_THREAD = nil
+	end
+
+	if SPEED_CONNECTION then
+		SPEED_CONNECTION:Disconnect()
+		SPEED_CONNECTION = nil
+	end
+
+	if ITEM_CONNECTION then
+		ITEM_CONNECTION:Disconnect()
+		ITEM_CONNECTION = nil
+	end
+
+	if FULLBRIGHT then
+		disableFullbright()
+		FULLBRIGHT = false
+	end
+
+	removePlayerESP()
+	removeGenESP()
+	removeItemESP()
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        
+        if STAMINA_ENABLED and SprintModule then
+            pcall(function()
+                if SprintModule.Stamina then SprintModule.Stamina = 100 end
+                if SprintModule.CurrentStamina then SprintModule.CurrentStamina = 100 end
+                if SprintModule.MaxStamina then SprintModule.MaxStamina = 100 end
+                if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 0 end
+                if SprintModule.DrainRate then SprintModule.DrainRate = 0 end
+            end)
+        end
+        
+        if ANTISTUN_ENABLED then
+            if StatusModule then
+                pcall(function()
+                    if StatusModule.IsStunned ~= nil then StatusModule.IsStunned = false end
+                    if StatusModule.Stunned ~= nil then StatusModule.Stunned = false end
+                    if StatusModule.StunDuration then StatusModule.StunDuration = 0 end
+                end)
+            end
+            
+            local character = LocalPlayer.Character
+            if character then
+                pcall(function()
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.PlatformStand == true then
+                        humanoid.PlatformStand = false
+                    end
+                    for _, object in pairs(character:GetChildren()) do
+                        local name = object.Name:lower()
+                        if name:find("stun") or name:find("daze") or name:find("paralyze") or name:find("blind") then
+                            object:Destroy()
+                        end
+                    end
+                    if character.GetAttributes then
+                        for attrName, _ in pairs(character:GetAttributes()) do
+                            local name = attrName:lower()
+                            if name:find("stun") or name:find("isstunned") then
+                                character:SetAttribute(attrName, false)
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end
 end)
 
 Players.PlayerAdded:Connect(function(player)
