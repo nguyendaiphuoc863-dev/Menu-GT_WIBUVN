@@ -5,6 +5,7 @@ local FULLBRIGHT = false
 local AUTO_GEN = false
 local STAMINA_ENABLED = false
 local ANTISTUN_ENABLED = false
+local USEJUMP_ENABLED = false
 
 local KILLER_COLOR = Color3.fromRGB(255, 0, 0)
 local SURVIVOR_COLOR = Color3.fromRGB(255, 255, 255)
@@ -189,6 +190,14 @@ AntiStunBtn.Text = "ANTI STUN: OFF"
 AntiStunBtn.TextScaled = true
 AntiStunBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 AntiStunBtn.TextColor3 = Color3.new(1,1,1)
+
+local UseJumpBtn = Instance.new("TextButton", MainPage)
+UseJumpBtn.Size = UDim2.new(0.9, 0, 0, 30)
+UseJumpBtn.Position = UDim2.new(0.05, 0, 1.25, 0)
+UseJumpBtn.Text = "USE JUMP: OFF"
+UseJumpBtn.TextScaled = true
+UseJumpBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+UseJumpBtn.TextColor3 = Color3.new(1,1,1)
 
 local PlayerBtn = Instance.new("TextButton", ESPPage)
 PlayerBtn.Size = UDim2.new(0.9, 0, 0, 30)
@@ -419,6 +428,14 @@ local function removePlayerESP()
 			end
 		end
 	end
+end
+
+local function ResetToGameDefault(Humanoid)
+    if Humanoid then
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+        Humanoid.JumpPower = 0
+        Humanoid.JumpHeight = 0
+    end
 end
 
 local function enableFullbright()
@@ -802,6 +819,23 @@ AntiStunBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+UseJumpBtn.MouseButton1Click:Connect(function()
+    USEJUMP_ENABLED = not USEJUMP_ENABLED
+
+    local Character = LocalPlayer.Character
+    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+    
+    if USEJUMP_ENABLED then
+        UseJumpBtn.Text = "USE JUMP: ON"
+        UseJumpBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        UseJumpBtn.Text = "USE JUMP: OFF"
+        UseJumpBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+
+        ResetToGameDefault(Humanoid)
+    end
+end)
+
 MinimizeBtn.MouseButton1Click:Connect(function()
 	savedMainPosition = MainFrame.Position
 	RestoreBtn.Position = savedRestorePosition
@@ -826,6 +860,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 	SPEED_ENABLED = false
     STAMINA_ENABLED = false
     ANTISTUN_ENABLED = false
+    USEJUMP_ENABLED = false
 	
 	stopSpeed()
 	removePlayerESP()
@@ -848,6 +883,7 @@ ScreenGui.Destroying:Connect(function()
 	SPEED_ENABLED = false
     STAMINA_ENABLED = false
     ANTISTUN_ENABLED = false
+    USEJUMP_ENABLED = false
 
 	if PLAYER_CONNECTION then
 		task.cancel(PLAYER_CONNECTION)
@@ -930,6 +966,43 @@ task.spawn(function()
                     end
                 end)
             end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    local Character = LocalPlayer.Character
+    if Character then
+        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+        if Humanoid then
+            if USEJUMP_ENABLED then
+                Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+
+                if not Humanoid.UseJumpPower then
+                    Humanoid.UseJumpPower = true
+                end
+
+                if Humanoid.JumpPower ~= 50 then
+                    Humanoid.JumpPower = 50
+                end
+            else
+                if Humanoid.JumpPower > 0 or Humanoid.JumpHeight > 0 then
+                    ResetToGameDefault(Humanoid)
+                end
+            end
+        end
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
+    local Humanoid = NewCharacter:WaitForChild("Humanoid", 5)
+    if Humanoid then
+        if USEJUMP_ENABLED then
+            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+            Humanoid.UseJumpPower = true
+            Humanoid.JumpPower = 50
+        else
+            ResetToGameDefault(Humanoid)
         end
     end
 end)
