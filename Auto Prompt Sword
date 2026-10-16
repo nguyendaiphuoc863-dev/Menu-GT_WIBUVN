@@ -223,7 +223,7 @@ local function startAutoPrompt()
                     task.wait(prompt.HoldDuration + 0.05)
                     prompt:InputHoldEnd()
                 end
-                task.wait(1)
+                task.wait(0.5)
             end
         end
     end
