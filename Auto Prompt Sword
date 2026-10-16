@@ -1,12 +1,14 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 local _G = _G or {}
 _G.AutoSwordPrompt = false
 local originalCFrame = nil
+local noclipConnection = nil
 local TARGET_PLACE_ID = 107610426295102
 
 if game.PlaceId ~= TARGET_PLACE_ID then
@@ -14,7 +16,7 @@ if game.PlaceId ~= TARGET_PLACE_ID then
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "Anime Mysterious",
             Text = "Incorrect Place ID! Script has safely stopped.",
-            Duration = 6
+            Duration = 7
         })
     end)
     return
@@ -47,7 +49,7 @@ Title.Parent = MainFrame
 Title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Font = Enum.Font.SourceSansBold
-Title.Text = "Anime Mysterious - Boss Event"
+Title.Text = "Anime Mysterious - Auto Fence"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 14.000
 
@@ -82,19 +84,78 @@ local function createNotification(text)
     end)
 end
 
-local function teleportTo(targetCFrame)
+local function startNoclip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    noclipConnection = RunService.Stepped:Connect(function()
+        Character = LocalPlayer.Character
+        if Character then
+            for _, part in ipairs(Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide == true then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function stopNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    Character = LocalPlayer.Character
+    if Character then
+        local hrp = Character:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CanCollide = true end
+    end
+end
+
+local function smoothFlyTo(targetCFrame)
     Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local hrp = Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    local humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+    if not hrp or not humanoid then return end
     
-    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    startNoclip()
+    
+    local originalState = humanoid:GetState()
+    humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    
+    local attachment = Instance.new("Attachment")
+    attachment.Parent = hrp
+    
+    local linearVelocity = Instance.new("LinearVelocity")
+    linearVelocity.MaxForce = 99999
+    linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+    linearVelocity.RelativeTo = Enum.ActuatorRelativeTo.World
+    linearVelocity.Attachment0 = attachment
+    linearVelocity.Parent = hrp
+    
+    local alignOrientation = Instance.new("AlignOrientation")
+    alignOrientation.MaxTorque = 99999
+    alignOrientation.Responsiveness = 200
+    alignOrientation.Mode = Enum.OrientationMode.OneAttachment
+    alignOrientation.Attachment0 = attachment
+    alignOrientation.CFrame = targetCFrame
+    alignOrientation.Parent = hrp
+    
     local speed = 135
-    local duration = distance / speed
     
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
+    while _G.AutoSwordPrompt and (hrp.Position - targetCFrame.Position).Magnitude > 3 do
+        local direction = (targetCFrame.Position - hrp.Position).Unit
+        linearVelocity.VectorVelocity = direction * speed
+        task.wait()
+    end
+    
+    linearVelocity:Destroy()
+    alignOrientation:Destroy()
+    attachment:Destroy()
+    
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    hrp.CFrame = targetCFrame
+    humanoid:ChangeState(originalState)
+    
+    stopNoclip()
 end
 
 local function getAllSwords()
@@ -134,12 +195,12 @@ local function startAutoPrompt()
         
         if #availableSwords == 0 then
             if originalCFrame and not returnedHome then
-                StatusLabel.Text = "No Swords left! Returning to origin..."
-                teleportTo(originalCFrame)
+                StatusLabel.Text = "No Fences left! Returning to origin..."
+                smoothFlyTo(originalCFrame)
                 returnedHome = true
                 StatusLabel.Text = "Returned to original position."
             else
-                StatusLabel.Text = "No Swords with prompts found!"
+                StatusLabel.Text = "No Fences with prompts found!"
             end
             continue
         end
@@ -155,7 +216,7 @@ local function startAutoPrompt()
         
         if targetPart and prompt and prompt.Enabled then
             StatusLabel.Text = "Flying to: " .. targetSword.Name
-            teleportTo(targetPart.CFrame * CFrame.new(0, 3, 0))
+            smoothFlyTo(targetPart.CFrame * CFrame.new(0, 3, 0))
             task.wait(0.1)
             
             StatusLabel.Text = "Activating Prompt..."
@@ -169,6 +230,7 @@ local function startAutoPrompt()
             task.wait(0.2)
         end
     end
+    stopNoclip()
 end
 
 ToggleButton.MouseButton1Click:Connect(function()
@@ -176,12 +238,13 @@ ToggleButton.MouseButton1Click:Connect(function()
     if _G.AutoSwordPrompt then
         ToggleButton.Text = "Auto Prompt: ON"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-        createNotification("Auto Sword Scan ENABLED!")
+        createNotification("Auto Fence Scan ENABLED!")
         task.spawn(startAutoPrompt)
     else
         ToggleButton.Text = "Auto Prompt: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        createNotification("Auto Sword Scan DISABLED!")
+        createNotification("Auto Fence Scan DISABLED!")
+        stopNoclip()
     end
 end)
 
@@ -199,7 +262,7 @@ task.spawn(function()
         if mainGui then
             local voteFrame = mainGui:FindFirstChild("VoteStartFrame")
             if voteFrame and voteFrame.Visible == true then
-                createNotification("VOTE START DETECTED! TURN ON AUTO SWORD!")
+                createNotification("VOTE START DETECTED! TURN ON AUTO FENCE!")
                 break 
             end
         end
