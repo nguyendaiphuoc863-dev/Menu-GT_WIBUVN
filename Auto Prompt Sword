@@ -1,0 +1,207 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+local _G = _G or {}
+_G.AutoSwordPrompt = false
+local originalCFrame = nil
+local TARGET_PLACE_ID = 107610426295102
+
+if game.PlaceId ~= TARGET_PLACE_ID then
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Anime Mysterious",
+            Text = "Incorrect Place ID! Script has safely stopped.",
+            Duration = 6
+        })
+    end)
+    return
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local ToggleButton = Instance.new("TextButton")
+local StatusLabel = Instance.new("TextLabel")
+
+if game:GetService("CoreGui"):FindFirstChild("AnimeMysteriousGui") then
+    game:GetService("CoreGui").AnimeMysteriousGui:Destroy()
+end
+
+ScreenGui.Name = "AnimeMysteriousGui"
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ResetOnSpawn = false
+
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+MainFrame.Size = UDim2.new(0, 240, 0, 130)
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "Anime Mysterious - Boss Event"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14.000
+
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = MainFrame
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.35, 0)
+ToggleButton.Size = UDim2.new(0.8, 0, 0, 40)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "Auto Prompt: OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 16.000
+
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Parent = MainFrame
+StatusLabel.BackgroundTransparency = 1.000
+StatusLabel.Position = UDim2.new(0.05, 0, 0.75, 0)
+StatusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.Text = "Valid ID! GUI Ready!"
+StatusLabel.TextColor3 = Color3.fromRGB(85, 255, 127)
+StatusLabel.TextSize = 14.000
+
+local function createNotification(text)
+    StatusLabel.Text = text
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Anime Mysterious",
+            Text = text,
+            Duration = 5
+        })
+    end)
+end
+
+local function teleportTo(targetCFrame)
+    Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    local speed = 1000
+    local duration = distance / speed
+    
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+local function getAllSwords()
+    local swords = {}
+    for _, desc in ipairs(Workspace:GetDescendants()) do
+        if string.match(desc.Name, "^Fence") then 
+            local prompt = desc:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt and prompt.Enabled then
+                table.insert(swords, {Object = desc, Prompt = prompt})
+            end
+        end
+    end
+    return swords
+end
+
+local function startAutoPrompt()
+    Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local hrp = Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        originalCFrame = hrp.CFrame
+    end
+
+    local returnedHome = false
+
+    while _G.AutoSwordPrompt do
+        task.wait(0.2)
+        
+        if game.PlaceId ~= TARGET_PLACE_ID then
+            _G.AutoSwordPrompt = false
+            ToggleButton.Text = "Auto Prompt: OFF"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            createNotification("Left designated map! Auto-disabled.")
+            break
+        end
+        
+        local availableSwords = getAllSwords()
+        
+        if #availableSwords == 0 then
+            if originalCFrame and not returnedHome then
+                StatusLabel.Text = "No Swords left! Returning to origin..."
+                teleportTo(originalCFrame)
+                returnedHome = true
+                StatusLabel.Text = "Returned to original position."
+            else
+                StatusLabel.Text = "No Swords with prompts found!"
+            end
+            continue
+        end
+        
+        returnedHome = false
+        
+        local randomIndex = math.random(1, #availableSwords)
+        local targetData = availableSwords[randomIndex]
+        local targetSword = targetData.Object
+        local prompt = targetData.Prompt
+        
+        local targetPart = targetSword:IsA("BasePart") and targetSword or targetSword:FindFirstChildWhichIsA("BasePart", true)
+        
+        if targetPart and prompt and prompt.Enabled then
+            StatusLabel.Text = "Flying to: " .. targetSword.Name
+            teleportTo(targetPart.CFrame * CFrame.new(0, 3, 0))
+            task.wait(0.1)
+            
+            StatusLabel.Text = "Activating Prompt..."
+            if fireproximityprompt then
+                fireproximityprompt(prompt, 1)
+            else
+                prompt:InputHoldBegin()
+                task.wait(prompt.HoldDuration + 0.05)
+                prompt:InputHoldEnd()
+            end
+            task.wait(0.2)
+        end
+    end
+end
+
+ToggleButton.MouseButton1Click:Connect(function()
+    _G.AutoSwordPrompt = not _G.AutoSwordPrompt
+    if _G.AutoSwordPrompt then
+        ToggleButton.Text = "Auto Prompt: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        createNotification("Auto Sword Scan ENABLED!")
+        task.spawn(startAutoPrompt)
+    else
+        ToggleButton.Text = "Auto Prompt: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        createNotification("Auto Sword Scan DISABLED!")
+    end
+end)
+
+task.spawn(function()
+    task.wait(2)
+    StatusLabel.Text = "Monitoring VoteStartFrame..."
+    
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+    if not playerGui then return end
+    
+    while true do
+        task.wait(1)
+        
+        local mainGui = playerGui:FindFirstChild("Main")
+        if mainGui then
+            local voteFrame = mainGui:FindFirstChild("VoteStartFrame")
+            if voteFrame and voteFrame.Visible == true then
+                createNotification("VOTE START DETECTED! TURN ON AUTO SWORD!")
+                break 
+            end
+        end
+    end
+end)
