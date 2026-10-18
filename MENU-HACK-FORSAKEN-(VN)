@@ -1,7 +1,9 @@
 local PLAYER_ESP = false
 local GEN_ESP = false
 local ITEM_ESP = false
+local GEAR_ESP = false
 local FULLBRIGHT = false
+local SPEED_ENABLED = false
 local AUTO_GEN = false
 local STAMINA_ENABLED = false
 local ANTISTUN_ENABLED = false
@@ -9,10 +11,13 @@ local USEJUMP_ENABLED = false
 
 local KILLER_COLOR = Color3.fromRGB(255, 0, 0)
 local SURVIVOR_COLOR = Color3.fromRGB(255, 255, 255)
-local GEN_COLOR = Color3.fromRGB(0, 255, 0)
+local GEN_COLOR_COMPLETED = Color3.fromRGB(0, 255, 175)
+local GEN_COLOR_INCOMPLETE = Color3.fromRGB(255, 175, 0)
+local GEN_OUTLINE_COLOR = Color3.fromRGB(255, 255, 255)
 local ITEM_COLOR = Color3.fromRGB(0, 175, 255)
 local FRIEND_COLOR = Color3.fromRGB(255, 255, 0)
 local SPECTATE_COLOR = Color3.fromRGB(124, 124, 124)
+local GEAR_COLOR = Color3.fromRGB(35, 65, 35) 
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -29,8 +34,11 @@ local SpectatingFolder = PlayersFolder:WaitForChild("Spectating")
 local MapFolder = workspace:WaitForChild("Map")
 local Ingame = MapFolder:WaitForChild("Ingame")
 
-local SprintScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):WaitForChild("Sprinting")
-local SprintModule = require(SprintScript)
+local SprintModule
+pcall(function()
+    local SprintScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Sprinting")
+    if SprintScript then SprintModule = require(SprintScript) end
+end)
 
 local StatusModule
 pcall(function()
@@ -42,13 +50,16 @@ local GEN_CACHE = {}
 local OLD_SETTINGS = {}
 local GEN_CONNECTION = nil
 local ITEM_CONNECTION = nil
+local GEAR_CONNECTION = nil
 local AUTO_GEN_THREAD = nil
 local PLAYER_CONNECTION = nil
 
-local SPEED_ENABLED = false
-local SPEED_MULTIPLIER = 1.5
+local SPEED_MULTIPLIER = 1.15
 local SPEED_CONNECTION = nil
+local HITBOX_CONNECTION = nil 
 local NORMAL_WALK_SPEED = 16
+local lastBlinkTime = os.clock()
+local desyncInterval = 0.06
 
 for _, v in pairs(workspace:GetDescendants()) do
 	if v:IsA("Highlight") then
@@ -69,11 +80,11 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 999999
-ScreenGui.Parent = CoreGui
+ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui:SetAttribute("Destroyed", false)
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 250, 0, 260)
+MainFrame.Size = UDim2.new(0, 250, 0, 290)
 MainFrame.Position = UDim2.new(0.1, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 MainFrame.Active = true
@@ -124,16 +135,15 @@ ESPTab.BackgroundColor3 = Color3.fromRGB(60,60,60)
 ESPTab.TextColor3 = Color3.new(1,1,1)
 
 local MainPage = Instance.new("ScrollingFrame", MainFrame)
-MainPage.Size = UDim2.new(1, -10, 1, -83)
+MainPage.Size = UDim2.new(1, -10, 1, -113)
 MainPage.Position = UDim2.new(0, 5, 0, 63)
 MainPage.BackgroundTransparency = 1
-MainPage.CanvasSize = UDim2.new(0, 0, 0, 180)
-MainPage.ScrollBarThickness = 6
+MainPage.CanvasSize = UDim2.new(0, 0, 0, 230)
 MainPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
 MainPage.Visible = true
 
 local ESPPage = Instance.new("ScrollingFrame", MainFrame)
-ESPPage.Size = UDim2.new(1, -10, 1, -83)
+ESPPage.Size = UDim2.new(1, -10, 1, -113)
 ESPPage.Position = UDim2.new(0, 5, 0, 63)
 ESPPage.BackgroundTransparency = 1
 ESPPage.CanvasSize = UDim2.new(0, 0, 0, 150)
@@ -152,8 +162,10 @@ FullbrightBtn.TextColor3 = Color3.new(1,1,1)
 local AutoGenBtn = Instance.new("TextButton", MainPage)
 AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
 AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+AutoGenBtn.Text = "AUTO FIX GEN: OFF (ERROR - FIXING)"
 AutoGenBtn.TextScaled = true
+AutoGenBtn.AutoButtonColor = false
+AutoGenBtn.Active = false
 AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 AutoGenBtn.TextColor3 = Color3.new(1,1,1)
 
@@ -168,7 +180,7 @@ SpeedBtn.TextColor3 = Color3.new(1,1,1)
 local SpeedInput = Instance.new("TextBox", MainPage)
 SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
 SpeedInput.Position = UDim2.new(0.05, 0, 0.65, 0)
-SpeedInput.Text = "1.5x"
+SpeedInput.Text = "1.15x" 
 SpeedInput.PlaceholderText = "Speed Multiplier"
 SpeedInput.TextScaled = true
 SpeedInput.BackgroundColor3 = Color3.fromRGB(45,45,45)
@@ -223,9 +235,26 @@ ItemBtn.TextScaled = true
 ItemBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 ItemBtn.TextColor3 = Color3.new(1,1,1)
 
+local GearBtn = Instance.new("TextButton", ESPPage)
+GearBtn.Size = UDim2.new(0.9, 0, 0, 30)
+GearBtn.Position = UDim2.new(0.05, 0, 0.8, 0)
+GearBtn.Text = "GEAR ESP: OFF"
+GearBtn.TextScaled = true
+GearBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+GearBtn.TextColor3 = Color3.new(1,1,1)
+
+local InfoLabel = Instance.new("TextLabel", MainFrame)
+InfoLabel.Size = UDim2.new(1, -10, 0, 18)
+InfoLabel.Position = UDim2.new(0, 5, 1, -38)
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Text = "Status: Ready (Maximum speed: 1.35x)"
+InfoLabel.TextScaled = true
+InfoLabel.TextColor3 = Color3.fromRGB(0, 230, 120) 
+InfoLabel.Font = Enum.Font.SourceSansBold
+
 local Credit = Instance.new("TextLabel", MainFrame)
 Credit.Size = UDim2.new(1, -10, 0, 15)
-Credit.Position = UDim2.new(0, 5, 1.075, -18)
+Credit.Position = UDim2.new(0, 5, 1, -9)
 Credit.BackgroundTransparency = 1
 Credit.Text = "By: GT_WIBUVN"
 Credit.TextScaled = true
@@ -463,31 +492,60 @@ local function disableFullbright()
 end
 
 local function startSpeed()
-	if SPEED_CONNECTION then return end
+    if SPEED_CONNECTION then return end
+    
+    SPEED_CONNECTION = RunService.Heartbeat:Connect(function(deltaTime)
+        if not SPEED_ENABLED then return end
+        
+        local character = LocalPlayer.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        
+        if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
+            local moveDirectionXZ = Vector3.new(humanoid.MoveDirection.X, 0, humanoid.MoveDirection.Z).Unit
+            local walkSpeed = humanoid.WalkSpeed
+            local finalMultiplier = SPEED_MULTIPLIER
+            
+            if walkSpeed > 24 then 
+                finalMultiplier = 1.0
+            elseif walkSpeed > 16 then
+                finalMultiplier = math.min(SPEED_MULTIPLIER, 1.08)
+            end
+            
+            if finalMultiplier > 1 then
+                local calculatedMove = moveDirectionXZ * (walkSpeed * (finalMultiplier - 1)) * deltaTime
+                local currentCFrame = rootPart.CFrame
+                local newPosition = currentCFrame.Position + calculatedMove
+                
+                local targetCFrame = CFrame.new(newPosition.X, currentCFrame.Position.Y, newPosition.Z) * (currentCFrame - currentCFrame.Position)
+                character:PivotTo(targetCFrame)
+            end
+            
+            pcall(function()
+                rootPart.AssemblyLinearVelocity = Vector3.new(
+                    moveDirectionXZ.X * (walkSpeed * finalMultiplier),
+                    rootPart.AssemblyLinearVelocity.Y, 
+                    moveDirectionXZ.Z * (walkSpeed * finalMultiplier)
+                )
+                rootPart.AssemblyAngularVelocity = Vector3.zero
+            end)
+        end
+    end)
 
-	local character = LocalPlayer.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-	if humanoid then
-		NORMAL_WALK_SPEED = humanoid.WalkSpeed
-	end
-
-	SPEED_CONNECTION = RunService.RenderStepped:Connect(function(deltaTime)
-		if not SPEED_ENABLED then return end
-
-		local character = LocalPlayer.Character
-		if not character then return end
-
-		local rootPart = character:FindFirstChild("HumanoidRootPart")
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-
-		if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-			local dragFactor = (SPEED_MULTIPLIER - 1) * NORMAL_WALK_SPEED * deltaTime
-			local moveOffset = humanoid.MoveDirection * dragFactor
-
-			rootPart.CFrame = rootPart.CFrame + moveOffset
-		end
-	end)
+    HITBOX_CONNECTION = RunService.RenderStepped:Connect(function()
+        local character = LocalPlayer.Character
+        if not character then return end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+        
+        local queryHitbox = character:FindFirstChild("QueryHitbox", true) 
+        if queryHitbox and queryHitbox:IsA("BasePart") then
+            queryHitbox.CFrame = rootPart.CFrame
+        end
+    end)
 end
 
 local function stopSpeed()
@@ -498,202 +556,339 @@ local function stopSpeed()
 		SPEED_CONNECTION = nil
 	end
 
+	 if HITBOX_CONNECTION then
+        HITBOX_CONNECTION:Disconnect()
+        HITBOX_CONNECTION = nil
+    end
+
 	local character = LocalPlayer.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
 	if humanoid and humanoid.Health > 0 then
 		humanoid.WalkSpeed = NORMAL_WALK_SPEED
 	end
+
+	pcall(function()
+        local character = LocalPlayer.Character
+        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            rootPart.AssemblyLinearVelocity = Vector3.zero
+        end
+    end)
 end
 
-local function updateGeneratorESP(gen)
-	local highlight = gen:FindFirstChild("GEN_ESP")
-	local progress = gen:FindFirstChild("Progress", true)
+-- local function updateGeneratorESP(gen)
+-- 	local highlight = gen:FindFirstChild("GEN_ESP")
+-- 	local progress = gen:FindFirstChild("Progress", true)
 
-	if highlight and progress then
-		if progress.Value >= 100 then
-			highlight.FillColor = GEN_COLOR
-		else
-			highlight.FillColor = Color3.fromRGB(255,175,0)
-		end
-	end
-end
+-- 	if highlight and progress then
+-- 		if progress.Value >= 100 then
+-- 			highlight.FillColor = GEN_COLOR
+-- 		else
+-- 			highlight.FillColor = Color3.fromRGB(255,175,0)
+-- 		end
+-- 	end
+-- end
 
+-- local function doGenerator(gen)
+-- 	local main = gen:FindFirstChild("Main")
+-- 	if not main then return end
 
-local function doGenerator(gen)
-	local main = gen:FindFirstChild("Main")
-	if not main then return end
+-- 	local prompt = main:FindFirstChildOfClass("ProximityPrompt")
+-- 	if not prompt then return end
 
-	local prompt = main:FindFirstChildOfClass("ProximityPrompt")
-	if not prompt then return end
+-- 	local progress = gen:FindFirstChild("Progress", true)
+-- 	if progress and progress.Value >= 100 then
+-- 		updateGeneratorESP(gen)
+-- 		return
+-- 	end
 
-	local progress = gen:FindFirstChild("Progress", true)
-	if progress and progress.Value >= 100 then
-		updateGeneratorESP(gen)
-		return
-	end
+-- 	local remotes = gen:FindFirstChild("Remotes") or gen.Parent:FindFirstChild("Remotes")
+-- 	if not remotes then return end
 
-	local remotes = gen:FindFirstChild("Remotes") or gen.Parent:FindFirstChild("Remotes")
-	if not remotes then return end
+-- 	for _, re in pairs(remotes:GetChildren()) do
+-- 		if re:IsA("RemoteEvent") and re.Name == "RE" then
+-- 			pcall(function()
+-- 				re:FireServer(prompt)
+-- 			end)
+-- 		end
+-- 	end
 
-	for _, re in pairs(remotes:GetChildren()) do
-		if re:IsA("RemoteEvent") and re.Name == "RE" then
-			pcall(function()
-				re:FireServer(prompt)
-			end)
-		end
-	end
+-- 	task.delay(0.5, function()
+-- 		updateGeneratorESP(gen)
+-- 	end)
+-- end
 
-	task.delay(0.5, function()
-		updateGeneratorESP(gen)
-	end)
-end
+-- local function startAutoGen()
+-- 	AUTO_GEN_THREAD = task.spawn(function()
+-- 		while AUTO_GEN and not ScreenGui:GetAttribute("Destroyed") do
+-- 			pcall(function()
+-- 				local mapFolder = workspace:FindFirstChild("Map")
+-- 				if mapFolder then
+-- 					local ingame = mapFolder:FindFirstChild("Ingame")
+-- 					if ingame and ingame:FindFirstChild("Map") then
+-- 						for _, gen in pairs(ingame.Map:GetChildren()) do
+-- 							if gen:IsA("Model") and (gen.Name == "Generator" or gen:FindFirstChild("Progress", true)) then
+-- 								doGenerator(gen)
+-- 								task.wait(0.1)
+-- 							end
+-- 						end
+-- 					end
+-- 				end
+-- 			end)
+-- 			task.wait(1)
+-- 		end
 
-local function startAutoGen()
-	AUTO_GEN_THREAD = task.spawn(function()
-		while AUTO_GEN and not ScreenGui:GetAttribute("Destroyed") do
-			pcall(function()
-				local mapFolder = workspace:FindFirstChild("Map")
-				if mapFolder then
-					local ingame = mapFolder:FindFirstChild("Ingame")
-					if ingame and ingame:FindFirstChild("Map") then
-						for _, gen in pairs(ingame.Map:GetChildren()) do
-							if gen:IsA("Model") and (gen.Name == "Generator" or gen:FindFirstChild("Progress", true)) then
-								doGenerator(gen)
-								task.wait(0.1)
-							end
-						end
-					end
-				end
-			end)
-			task.wait(1)
-		end
+-- 		AUTO_GEN_THREAD = nil
+-- 	end)
+-- end
 
-		AUTO_GEN_THREAD = nil
-	end)
+local function checkGenCompleted(gen)
+    local attributes = gen:GetAttributes()
+    if attributes then
+        for name, value in pairs(attributes) do
+            local lowerName = name:lower()
+            if lowerName:find("progress") or lowerName:find("state") or lowerName:find("completed") then
+                if value == true or value == 100 or value == 5 or tostring(value):lower() == "complete" then
+                    return true
+                end
+            end
+        end
+    end
+
+    for _, ui in ipairs(gen:GetDescendants()) do
+        if ui:IsA("TextLabel") or ui:IsA("TextBox") then
+            local text = ui.Text:lower():gsub("%s+", "")
+            if text:find("5/5") or text:find("4/4") or text:find("100%%") or text:find("complete") or text:find("finished") then
+                return true
+            end
+        end
+
+        if ui:IsA("Frame") and ui.Name:lower():find("bar") then
+            if ui.Size.X.Scale >= 0.98 then
+                return true
+            end
+        end
+    end
+
+    local marker = gen:FindFirstChild("Light", true) or gen:FindFirstChild("Lamp", true) or gen:FindFirstChild("Neon", true)
+    if marker and marker:IsA("BasePart") then
+        if marker.Color == Color3.fromRGB(0, 255, 0) or marker.Material == Enum.Material.Neon then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function setupGenerator(gen)
-	if not gen:IsA("Model") then return end
-	if GEN_CACHE[gen] then return end
+    if not gen:IsA("Model") then return end
+    
+    local highlight = gen:FindFirstChild("GEN_ESP")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Name = "GEN_ESP"
+        highlight.Adornee = gen
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.4
+        highlight.OutlineTransparency = 0.1
+        highlight.OutlineColor = GEN_OUTLINE_COLOR
+        highlight.Parent = gen
+    end
 
-	local highlight = gen:FindFirstChild("GEN_ESP")
-	if not highlight then
-		highlight = Instance.new("Highlight")
-		highlight.Name = "GEN_ESP"
-		highlight.Adornee = gen
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.Parent = gen
-	end
+    GEN_CACHE[gen] = true
 
-	GEN_CACHE[gen] = true
-
-	local progress = gen:FindFirstChild("Progress", true)
-	if progress then
-		local function updateColor()
-			if highlight and highlight.Parent then
-				highlight.FillColor = (progress.Value >= 100)
-					and GEN_COLOR
-					or Color3.fromRGB(255,175,0)
-			end
-		end
-		
-		updateColor()
-
-		if not progress:FindFirstChild("ESP_CONNECTION") then
-			local tag = Instance.new("BoolValue")
-			tag.Name = "ESP_CONNECTION"
-			tag.Parent = progress
-
-			progress:GetPropertyChangedSignal("Value"):Connect(updateColor)
-		end
-	end
+    if highlight and highlight.Parent then
+        if checkGenCompleted(gen) then
+            highlight.FillColor = GEN_COLOR_COMPLETED
+        else
+            highlight.FillColor = GEN_COLOR_INCOMPLETE
+        end
+    end
 end
 
 local function applyGenESP()
-	if GEN_CONNECTION then return end
-	
-	GEN_CONNECTION = task.spawn(function()
-		while GEN_ESP and not ScreenGui:GetAttribute("Destroyed") do
-			pcall(function()
-				local mapFolder = workspace:FindFirstChild("Map")
-				local ingame = mapFolder and mapFolder:FindFirstChild("Ingame")
-				local currentMap = ingame and ingame:FindFirstChild("Map")
-				
-				if currentMap then
-					for _, obj in pairs(currentMap:GetChildren()) do
-						if obj:IsA("Model") and obj.Name == "Generator" then
-							setupGenerator(obj) 
-						end
-					end
-				end
-			end)
-			task.wait(1) 
-		end
+    if GEN_CONNECTION then return end
+    
+    GEN_CONNECTION = task.spawn(function()
+        while GEN_ESP and not ScreenGui:GetAttribute("Destroyed") do
+            pcall(function()
+                local mapFolder = workspace:FindFirstChild("Map")
+                local ingame = mapFolder and mapFolder:FindFirstChild("Ingame")
+                local currentMap = ingame and ingame:FindFirstChild("Map")
+                
+                if currentMap then
+                    local foundCount = 0
+                    for _, obj in pairs(currentMap:GetChildren()) do
+                        if obj:IsA("Model") and obj.Name == "Generator" then
+                            setupGenerator(obj)
+                            foundCount = foundCount + 1
+                        end
+                    end
+                end
+            end)
 
-		GEN_CONNECTION = nil
-	end)
+            task.wait(1)
+        end
+
+        GEN_CONNECTION = nil
+    end)
 end
 
 local function removeGenESP()
-	if GEN_CONNECTION then
-		task.cancel(GEN_CONNECTION)
-		GEN_CONNECTION = nil
-	end
+    if GEN_CONNECTION then
+        task.cancel(GEN_CONNECTION)
+        GEN_CONNECTION = nil
+    end
 
-	for gen, _ in pairs(GEN_CACHE) do
-		if gen and gen:FindFirstChild("GEN_ESP") then
-			gen.GEN_ESP:Destroy()
-		end
-	end
+    for gen, _ in pairs(GEN_CACHE) do
+        if gen and gen.Parent then
+            local highlight = gen:FindFirstChild("GEN_ESP")
+            if highlight then highlight:Destroy() end
+        end
+    end
 
-	GEN_CACHE = {}
+    GEN_CACHE = {}
 end
 
 local function setupItemESP(tool)
-	if not tool:IsA("Tool") then return end
-	if tool:FindFirstChild("ITEM_ESP") then return end
+    if not tool:IsA("Tool") then return end
+    if tool:FindFirstChild("ITEM_ESP") then return end
 
-	local h = Instance.new("Highlight")
-	h.Name = "ITEM_ESP"
-	h.Adornee = tool
-	h.FillColor = ITEM_COLOR
-	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-	h.Parent = tool
+    task.defer(function()
+        if not tool:IsDescendantOf(workspace) then return end
+        
+        if #tool:GetChildren() == 0 then
+            task.wait(0.1)
+        end
+        
+        if not tool:IsDescendantOf(workspace) or tool:FindFirstChild("ITEM_ESP") then return end
+
+        local h = Instance.new("Highlight")
+        h.Name = "ITEM_ESP"
+        h.Adornee = tool
+        h.FillColor = ITEM_COLOR
+        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        h.Parent = tool
+    end)
 end
 
 local function applyItemESP()
-	for _, obj in pairs(Ingame:GetDescendants()) do
-		if obj:IsA("Tool") then
-			setupItemESP(obj)
-		end
-	end
+    ITEM_ESP = true 
 
-	if not ITEM_CONNECTION then
-		ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
-			if ScreenGui:GetAttribute("Destroyed") then
-				ITEM_CONNECTION:Disconnect()
-				ITEM_CONNECTION = nil
-				return
-			end
+    for _, obj in pairs(Ingame:GetDescendants()) do
+        if obj:IsA("Tool") then 
+            setupItemESP(obj) 
+        end
+    end
 
-			if ITEM_ESP and obj:IsA("Tool") then
-				setupItemESP(obj)
-			end
-		end)
-	end
+    if not ITEM_CONNECTION then
+        ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
+            if ScreenGui:GetAttribute("Destroyed") then 
+                ITEM_CONNECTION:Disconnect() 
+                ITEM_CONNECTION = nil 
+                return 
+            end
+            
+            if ITEM_ESP and obj:IsA("Tool") then 
+                setupItemESP(obj) 
+            end
+        end)
+    end
 end
 
 local function removeItemESP()
-	for _, obj in pairs(workspace:GetDescendants()) do
-		local h = obj:FindFirstChild("ITEM_ESP")
-		if h then h:Destroy() end
-	end
+    ITEM_ESP = false
 
-	if ITEM_CONNECTION then
-		ITEM_CONNECTION:Disconnect()
-		ITEM_CONNECTION = nil
-	end
+    for _, obj in pairs(Ingame:GetDescendants()) do
+        local h = obj:FindFirstChild("ITEM_ESP")
+        if h then 
+            h:Destroy() 
+        end
+    end
+
+    if ITEM_CONNECTION then 
+        ITEM_CONNECTION:Disconnect() 
+        ITEM_CONNECTION = nil 
+    end
+end
+
+local function setupGearESP(object, color, espName)
+    if not GEAR_ESP or object:FindFirstChild(espName) then return false end 
+    if not object:IsDescendantOf(workspace) then return false end
+
+    local h = Instance.new("Highlight")
+    h.Name = espName
+    h.Adornee = object
+    h.FillColor = color
+    h.OutlineColor = Color3.fromRGB(255, 255, 255)
+    h.FillTransparency = 0.4
+    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    h.Parent = ScreenGui
+    
+    local connection
+    connection = object.AncestryChanged:Connect(function()
+        if not object:IsDescendantOf(workspace) then
+            h:Destroy()
+            if connection then connection:Disconnect() end
+        end
+    end)
+
+    return true
+end
+
+local function isGear(obj)
+    if obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("BasePart") then
+        local nameLower = string.lower(obj.Name)
+        if string.find(nameLower, "gear") then
+            return true
+        end
+    end
+    return false
+end
+
+local function applyGearESP()
+    GEAR_ESP = true
+    
+    task.spawn(function()
+        local descendants = Ingame:GetDescendants()
+        for _, obj in pairs(descendants) do
+            if not GEAR_ESP then break end
+            
+            if isGear(obj) then
+                local success = setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
+               
+                if success then
+                    task.wait(0.15) 
+                end
+            end
+        end
+    end)
+    
+    if GEAR_CONNECTION then GEAR_CONNECTION:Disconnect() end
+    GEAR_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
+        if GEAR_ESP and isGear(obj) then
+            task.wait(0.15)
+            if GEAR_ESP then
+                setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
+            end
+        end
+    end)
+end
+
+local function removeGearESP()
+    GEAR_ESP = false
+    
+    if GEAR_CONNECTION then 
+        GEAR_CONNECTION:Disconnect() 
+        GEAR_CONNECTION = nil 
+    end
+    
+    for _, tag in pairs(ScreenGui:GetChildren()) do
+        if tag:IsA("Highlight") then
+            tag:Destroy()
+        end
+    end
 end
 
 PlayerBtn.MouseButton1Click:Connect(function()
@@ -752,20 +947,20 @@ FullbrightBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
-AutoGenBtn.MouseButton1Click:Connect(function()
-	AUTO_GEN = not AUTO_GEN
-	if AUTO_GEN then
-		AutoGenBtn.Text = "AUTO FIX GEN: ON"
-		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
-		startAutoGen()
-	else
-		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
-		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
-		if AUTO_GEN_THREAD then
-			task.cancel(AUTO_GEN_THREAD)
-		end
-	end
-end)
+-- AutoGenBtn.MouseButton1Click:Connect(function()
+-- 	AUTO_GEN = not AUTO_GEN
+-- 	if AUTO_GEN then
+-- 		AutoGenBtn.Text = "AUTO FIX GEN: ON"
+-- 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+-- 		startAutoGen()
+-- 	else
+-- 		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+-- 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+-- 		if AUTO_GEN_THREAD then
+-- 			task.cancel(AUTO_GEN_THREAD)
+-- 		end
+-- 	end
+-- end)
 
 SpeedBtn.MouseButton1Click:Connect(function()
 	SPEED_ENABLED = not SPEED_ENABLED
@@ -782,15 +977,16 @@ SpeedBtn.MouseButton1Click:Connect(function()
 end)
 
 SpeedInput.FocusLost:Connect(function()
-	local text = SpeedInput.Text:gsub("%s+", ""):lower():gsub("x$", "")
-	local value = tonumber(text)
-
-	if value and value >= 1 then
-		SPEED_MULTIPLIER = value
-		SpeedInput.Text = tostring(value) .. "x"
-	else
-		SpeedInput.Text = tostring(SPEED_MULTIPLIER) .. "x"
-	end
+    local text = SpeedInput.Text:gsub("%s+", ""):lower():gsub("x$", "")
+    local value = tonumber(text)
+    
+    if value and value >= 1 and value <= 1.35 then
+        SPEED_MULTIPLIER = value
+        SpeedInput.Text = tostring(value) .. "x"
+    else
+        SPEED_MULTIPLIER = 1.15
+        SpeedInput.Text = "1.15x"
+    end
 end)
 
 StaminaBtn.MouseButton1Click:Connect(function()
@@ -836,6 +1032,20 @@ UseJumpBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+GearBtn.MouseButton1Click:Connect(function()
+	GEAR_ESP = not GEAR_ESP
+
+    if GEAR_ESP then
+        applyGearESP()
+        GearBtn.Text = "GEAR ESP: ON"
+        GearBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    else
+        removeGearESP()
+        GearBtn.Text = "GEAR ESP: OFF"
+        GearBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+    end
+end)
+
 MinimizeBtn.MouseButton1Click:Connect(function()
 	savedMainPosition = MainFrame.Position
 	RestoreBtn.Position = savedRestorePosition
@@ -861,29 +1071,7 @@ CloseBtn.MouseButton1Click:Connect(function()
     STAMINA_ENABLED = false
     ANTISTUN_ENABLED = false
     USEJUMP_ENABLED = false
-	
-	stopSpeed()
-	removePlayerESP()
-	removeGenESP()
-	removeItemESP()
-
-	if FULLBRIGHT then
-		disableFullbright()
-		FULLBRIGHT = false
-	end
-
-	ScreenGui:Destroy()
-end)
-
-ScreenGui.Destroying:Connect(function()
-	PLAYER_ESP = false
-	GEN_ESP = false
-	ITEM_ESP = false
-	AUTO_GEN = false
-	SPEED_ENABLED = false
-    STAMINA_ENABLED = false
-    ANTISTUN_ENABLED = false
-    USEJUMP_ENABLED = false
+	GEAR_ESP = false
 
 	if PLAYER_CONNECTION then
 		task.cancel(PLAYER_CONNECTION)
@@ -910,6 +1098,11 @@ ScreenGui.Destroying:Connect(function()
 		ITEM_CONNECTION = nil
 	end
 
+	if GEAR_CONNECTION then
+		GEAR_CONNECTION:Disconnect()
+		GEAR_CONNECTION = nil
+	end
+
 	if FULLBRIGHT then
 		disableFullbright()
 		FULLBRIGHT = false
@@ -918,6 +1111,61 @@ ScreenGui.Destroying:Connect(function()
 	removePlayerESP()
 	removeGenESP()
 	removeItemESP()
+	removeGearESP()
+
+	ScreenGui:Destroy()
+end)
+
+ScreenGui.Destroying:Connect(function()
+	PLAYER_ESP = false
+	GEN_ESP = false
+	ITEM_ESP = false
+	AUTO_GEN = false
+	SPEED_ENABLED = false
+    STAMINA_ENABLED = false
+    ANTISTUN_ENABLED = false
+    USEJUMP_ENABLED = false
+	GEAR_ESP = false
+
+	if PLAYER_CONNECTION then
+		task.cancel(PLAYER_CONNECTION)
+		PLAYER_CONNECTION = nil
+	end
+
+	if GEN_CONNECTION then
+		task.cancel(GEN_CONNECTION)
+		GEN_CONNECTION = nil
+	end
+
+	if AUTO_GEN_THREAD then
+		task.cancel(AUTO_GEN_THREAD)
+		AUTO_GEN_THREAD = nil
+	end
+
+	if SPEED_CONNECTION then
+		SPEED_CONNECTION:Disconnect()
+		SPEED_CONNECTION = nil
+	end
+
+	if ITEM_CONNECTION then
+		ITEM_CONNECTION:Disconnect()
+		ITEM_CONNECTION = nil
+	end
+
+	if GEAR_CONNECTION then
+		GEAR_CONNECTION:Disconnect()
+		GEAR_CONNECTION = nil
+	end
+
+	if FULLBRIGHT then
+		disableFullbright()
+		FULLBRIGHT = false
+	end
+
+	removePlayerESP()
+	removeGenESP()
+	removeItemESP()
+	removeGearESP()
 end)
 
 task.spawn(function()
@@ -970,41 +1218,58 @@ task.spawn(function()
     end
 end)
 
+local function forceEnableJump(Humanoid)
+    if not Humanoid then return end
+    
+    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+    
+    local currentState = Humanoid:GetState()
+    if currentState == Enum.HumanoidStateType.None or currentState == Enum.HumanoidStateType.FallingDown then
+        Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+	
+    if Humanoid.UseJumpPower then
+        if Humanoid.JumpPower ~= 50 then
+            Humanoid.JumpPower = 50
+        end
+    else
+        if Humanoid.JumpHeight ~= 7.2 then 
+            Humanoid.JumpHeight = 7.2
+        end
+    end
+end
+
 RunService.Heartbeat:Connect(function()
     local Character = LocalPlayer.Character
-    if Character then
-        local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-        if Humanoid then
-            if USEJUMP_ENABLED then
-                Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+    if not Character then return end
+    
+    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+    if not Humanoid or Humanoid.Health <= 0 then return end
 
-                if not Humanoid.UseJumpPower then
-                    Humanoid.UseJumpPower = true
-                end
-
-                if Humanoid.JumpPower ~= 50 then
-                    Humanoid.JumpPower = 50
-                end
-            else
-                if Humanoid.JumpPower > 0 or Humanoid.JumpHeight > 0 then
-                    ResetToGameDefault(Humanoid)
-                end
-            end
+    if USEJUMP_ENABLED then
+        forceEnableJump(Humanoid)
+        
+        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+    else
+        if (Humanoid.UseJumpPower and Humanoid.JumpPower == 50) or (not Humanoid.UseJumpPower and Humanoid.JumpHeight == 7.2) then
+            ResetToGameDefault(Humanoid)
         end
     end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
-    local Humanoid = NewCharacter:WaitForChild("Humanoid", 5)
-    if Humanoid then
+    local Humanoid = NewCharacter:WaitForChild("Humanoid", 10)
+    if not Humanoid then return end
+    
+    task.defer(function()
+        if not Humanoid:IsDescendantOf(workspace) then return end
+        
         if USEJUMP_ENABLED then
-            Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-            Humanoid.UseJumpPower = true
-            Humanoid.JumpPower = 50
+            forceEnableJump(Humanoid)
         else
             ResetToGameDefault(Humanoid)
         end
-    end
+    end)
 end)
 
 Players.PlayerAdded:Connect(function(player)
