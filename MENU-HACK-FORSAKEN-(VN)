@@ -166,7 +166,7 @@ AutoGenBtn.Text = "AUTO FIX GEN: OFF (ERROR - FIXING)"
 AutoGenBtn.TextScaled = true
 AutoGenBtn.AutoButtonColor = false
 AutoGenBtn.Active = false
-AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+AutoGenBtn.BackgroundColor3 = Color3.fromRGB(128,128,128)
 AutoGenBtn.TextColor3 = Color3.new(1,1,1)
 
 local SpeedBtn = Instance.new("TextButton", MainPage)
