@@ -1,4 +1,3 @@
--- Kịch bản Auto Parry Premium + Mượt Mà Kéo Thả Trực Tiếp Trên Mobile & PC
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -32,11 +31,12 @@ local function GetBall()
     return nil
 end
 
--- Hàm kích hoạt nút Đỡ Bóng (Block) của Game
+-- Hàm kích hoạt nút Đỡ Bóng (Block) thông qua VirtualUser / Fire để bypass mượt mà
 local function TriggerParry()
     local playerGui = Player:FindFirstChild("PlayerGui")
     if playerGui and playerGui:FindFirstChild("Hotbar") and playerGui.Hotbar:FindFirstChild("Block") then
         local blockButton = playerGui.Hotbar.Block
+        -- Kích hoạt tất cả kết nối sự kiện của nút nhấn
         for _, connection in pairs(getconnections(blockButton.Activated)) do connection:Fire() end
         for _, connection in pairs(getconnections(blockButton.MouseButton1Click)) do connection:Fire() end
         for _, connection in pairs(getconnections(blockButton.MouseButton1Down)) do connection:Fire() end
@@ -58,9 +58,10 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AutoParry_MobileFixedUI"
 ScreenGui.ResetOnSpawn = false
-
 pcall(function() ScreenGui.Parent = CoreGui end)
-if not ScreenGui.Parent then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
+if not ScreenGui.Parent then
+    ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+end
 
 -- 1. Khung nền chính (Main Frame)
 local MainFrame = Instance.new("Frame")
@@ -81,14 +82,14 @@ MainStroke.Thickness = 2
 MainStroke.Color = Color3.fromRGB(255, 60, 60)
 MainStroke.Parent = MainFrame
 
--- 2. Thanh tiêu đề để kéo (Title Bar) - Dùng để vuốt kéo trên Mobile
+-- 2. Thanh tiêu đề để kéo (Title Bar)
 local TitleBar = Instance.new("TextLabel")
 TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 35)
 TitleBar.Position = UDim2.new(0, 0, 0, 0)
 TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TitleBar.BorderSizePixel = 0
-TitleBar.Text = "  ⚡ BLADE PARRY PRO"
+TitleBar.Text = " ⚡ BLADE PARRY PRO"
 TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleBar.Font = Enum.Font.GothamBold
 TitleBar.TextSize = 14
@@ -113,7 +114,7 @@ ToggleButton.Name = "ToggleBtn"
 ToggleButton.Size = UDim2.new(1, -30, 0, 50)
 ToggleButton.Position = UDim2.new(0, 15, 0, 65)
 ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Text = "" 
+ToggleButton.Text = ""
 ToggleButton.Parent = MainFrame
 
 local BtnCorner = Instance.new("UICorner")
@@ -131,12 +132,12 @@ ButtonGradient.Parent = ToggleButton
 local ButtonText = Instance.new("TextLabel")
 ButtonText.Name = "ButtonText"
 ButtonText.Size = UDim2.new(1, 0, 1, 0)
-ButtonText.BackgroundTransparency = 1 
+ButtonText.BackgroundTransparency = 1
 ButtonText.Text = "STATUS: OFF"
 ButtonText.TextColor3 = Color3.fromRGB(255, 255, 255)
 ButtonText.Font = Enum.Font.GothamBold
 ButtonText.TextSize = 16
-ButtonText.ZIndex = 5 
+ButtonText.ZIndex = 5
 ButtonText.Parent = ToggleButton
 
 -- =======================================================
@@ -146,14 +147,12 @@ local Dragging = false
 local DragStart = Vector3.new()
 local StartPos = UDim2.new()
 
--- Sự kiện nhấn xuống trên TitleBar (Hỗ trợ chuột trái PC và chạm tay Mobile)
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         Dragging = true
         DragStart = input.Position
         StartPos = MainFrame.Position
         
-        -- Ngắt trạng thái kéo khi buông tay/thả chuột ngoài vùng
         input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.End then
                 Dragging = false
@@ -162,15 +161,12 @@ TitleBar.InputBegan:Connect(function(input)
     end
 end)
 
--- Lắng nghe di chuyển toàn hệ thống để cập nhật vị trí Frame mượt mà
 UserInputService.InputChanged:Connect(function(input)
     if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local Delta = input.Position - DragStart
         MainFrame.Position = UDim2.new(
-            StartPos.X.Scale, 
-            StartPos.X.Offset + Delta.X, 
-            StartPos.Y.Scale, 
-            StartPos.Y.Offset + Delta.Y
+            StartPos.X.Scale, StartPos.X.Offset + Delta.X,
+            StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y
         )
     end
 end)
@@ -182,15 +178,15 @@ local function ToggleAutoParry()
     autoParryEnabled = not autoParryEnabled
     if autoParryEnabled then
         MainStroke.Color = Color3.fromRGB(60, 255, 60)
-        ButtonText.Text = "STATUS: ACTIVE" 
+        ButtonText.Text = "STATUS: ACTIVE"
         ButtonGradient.Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 240, 40)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 150, 20))
-        })
+})
         SendNotification("Auto Parry", "Trạng thái: ĐÃ BẬT 🟢", 1.5)
     else
         MainStroke.Color = Color3.fromRGB(255, 60, 60)
-        ButtonText.Text = "STATUS: OFF" 
+        ButtonText.Text = "STATUS: OFF"
         ButtonGradient.Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Color3.fromRGB(240, 40, 40)),
             ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 20, 20))
@@ -199,10 +195,8 @@ local function ToggleAutoParry()
     end
 end
 
--- Dùng Activated để Mobile nhận diện nhấn thả chuẩn xác, không bị nhầm khi đang kéo
 ToggleButton.Activated:Connect(ToggleAutoParry)
 
--- Giữ phím tắt K cho PC
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.K then
@@ -211,7 +205,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- =======================================================
--- VÒNG LẶP KIỂM TRA ĐỠ BÓNG
+-- VÒNG LẶP KIỂM TRA ĐỠ BÓNG ĐỘ CHÍNH XÁC CAO
 -- =======================================================
 local function MonitorBall()
     local Ball = GetBall()
@@ -230,29 +224,52 @@ if workspace:FindFirstChild("Balls") then
 end
 task.spawn(MonitorBall)
 
-RunService.PreSimulation:Connect(function()
+-- Sử dụng PreRender (RenderStepped trước đây) để chạy mượt nhất có thể trên thiết bị tần số quét cao (120Hz+)
+RunService.PreRender:Connect(function()
     if not autoParryEnabled then return end
     
     local Ball = GetBall()
     local Character = Player.Character
     local HRP = Character and Character:FindFirstChild("HumanoidRootPart")
     
-    if not Ball or not HRP or not Ball:FindFirstChild("zoomies") then return end
+    if not Ball or not HRP then return end
     
-    local BallVelocity = Ball.zoomies.VectorVelocity
+    -- Lấy vận tốc bóng chuẩn xác nhất (Hỗ trợ cả zoomies lẫn vận tốc tuyến tính cơ bản)
+    local BallVelocity = Vector3.new(0, 0, 0)
+    if Ball:FindFirstChild("zoomies") then
+        BallVelocity = Ball.zoomies.VectorVelocity
+    else
+        BallVelocity = Ball.AssemblyLinearVelocity
+    end
+    
     local Speed = BallVelocity.Magnitude
-    if Speed <= 0 then Speed = 0.1 end
+    if Speed <= 0.1 then return end -- Bóng đang đứng yên
     
-    local Distance = (HRP.Position - Ball.Position).Magnitude
+    local DirectionToPlayer = (HRP.Position - Ball.Position)
+    local Distance = DirectionToPlayer.Magnitude
     local Target = Ball:GetAttribute("target")
-    local TimeToHit = Distance / Speed
     
-    if Target == Player.Name and not IsParried and TimeToHit <= 0.55 then
-        IsParried = true
-        TriggerParry()
+    -- Thuật toán Dot Product kiểm tra hướng: Chỉ đỡ khi bóng đang bay VỀ PHÍA người chơi
+    local BallDirection = BallVelocity.Unit
+    local IsMovingToMe = BallDirection:Dot(DirectionToPlayer.Unit) > 0
+    
+    if Target == Player.Name and IsMovingToMe and not IsParried then
+        -- Tính toán Ping thực tế của người chơi để bù trừ độ trễ (Latency Compensation)
+        local Ping = settings().Network.IncomingReplicationLag
+        local TimeToHit = Distance / Speed
         
-        task.delay(0.3, function()
-            IsParried = false
-        end)
+        -- Ngưỡng kích hoạt thích ứng (Có thể tăng lên 0.6 hoặc giảm xuống 0.5 tùy theo độ khó mong muốn)
+        local ParryThreshold = 0.52 + (Ping * 0.5) 
+        
+        if TimeToHit <= ParryThreshold then
+            IsParried = true
+            TriggerParry()
+            
+            -- Reset trạng thái dựa trên tốc độ bóng để tránh spam / kẹt nút
+            local DelayTime = math.clamp(Distance / Speed, 0.1, 0.35)
+            task.delay(DelayTime, function()
+                IsParried = false
+            end)
+        end
     end
 end)
