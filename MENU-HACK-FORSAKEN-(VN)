@@ -753,15 +753,13 @@ end
 
 local function setupItemESP(tool)
     if not tool:IsA("Tool") then return end
-    if tool:FindFirstChild("ITEM_ESP") then return end
+	
+    local existing = tool:FindFirstChild("ITEM_ESP")
+    if existing then return end
 
     task.defer(function()
         if not tool:IsDescendantOf(workspace) then return end
-        
-        if #tool:GetChildren() == 0 then
-            task.wait(0.1)
-        end
-        
+        if #tool:GetChildren() == 0 then task.wait(0.1) end
         if not tool:IsDescendantOf(workspace) or tool:FindFirstChild("ITEM_ESP") then return end
 
         local h = Instance.new("Highlight")
@@ -770,18 +768,41 @@ local function setupItemESP(tool)
         h.FillColor = ITEM_COLOR
         h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         h.Parent = tool
+
+        local connection
+        connection = tool.ChildAdded:Connect(function(child)
+            if not ITEM_ESP then 
+                connection:Disconnect() 
+                return 
+            end
+            
+            if child:IsA("Highlight") and child.Name ~= "ITEM_ESP" then
+                task.defer(function()
+                    child:Destroy()
+
+                    if h and h.Parent then
+                        h.Enabled = false
+                        h.Enabled = true
+                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                end)
+            end
+        end)
+        
+        h.Destroying:Connect(function()
+            if connection then connection:Disconnect() end
+        end)
     end)
 end
 
 local function applyItemESP()
-    ITEM_ESP = true 
-
+    ITEM_ESP = true
     for _, obj in pairs(Ingame:GetDescendants()) do
         if obj:IsA("Tool") then 
             setupItemESP(obj) 
         end
     end
-
+    
     if not ITEM_CONNECTION then
         ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
             if ScreenGui:GetAttribute("Destroyed") then 
@@ -789,7 +810,6 @@ local function applyItemESP()
                 ITEM_CONNECTION = nil 
                 return 
             end
-            
             if ITEM_ESP and obj:IsA("Tool") then 
                 setupItemESP(obj) 
             end
@@ -799,14 +819,15 @@ end
 
 local function removeItemESP()
     ITEM_ESP = false
-
     for _, obj in pairs(Ingame:GetDescendants()) do
-        local h = obj:FindFirstChild("ITEM_ESP")
-        if h then 
-            h:Destroy() 
+        if obj:IsA("Tool") then
+            for _, child in pairs(obj:GetChildren()) do
+                if child:IsA("Highlight") and child.Name == "ITEM_ESP" then
+                    child:Destroy()
+                end
+            end
         end
     end
-
     if ITEM_CONNECTION then 
         ITEM_CONNECTION:Disconnect() 
         ITEM_CONNECTION = nil 
