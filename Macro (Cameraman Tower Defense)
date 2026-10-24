@@ -1,0 +1,68 @@
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
+loadstring(game:HttpGet("https://raw.githubusercontent.com/KeroTwT/Kero-Hub/refs/heads/main/KeroHub"))()
+
+-- Tạo UI ảo chạy ngầm trong CoreGui
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
+local GameUI = PlayerGui:WaitForChild("GameUI", 10)
+
+local AutoScriptGui = Instance.new("ScreenGui")
+AutoScriptGui.Name = "HardwareClickerCoreGui"
+AutoScriptGui.Parent = CoreGui
+
+-- Hàm bổ trợ giả lập click chuột thật vào tọa độ của Nút
+local function clickButton(button)
+    if button and button.AbsolutePosition and button.AbsoluteSize then
+        -- Tính toán tọa độ tâm của nút trên màn hình
+        local x = button.AbsolutePosition.X + (button.AbsoluteSize.X / 2)
+        local y = button.AbsolutePosition.Y + (button.AbsoluteSize.Y / 2) + 36 -- Cộng 36px offset của thanh topbar Roblox
+        
+        -- Gửi tín hiệu click chuột (Nhấn xuống và Thả ra)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+        task.wait(0.01)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+    end
+end
+
+-- ==========================================
+-- PHẦN 1: TỰ ĐỘNG NHẤN INTERACTIVEBUTTON (Spam 3 lần, mỗi 0.35s)
+-- ==========================================
+task.spawn(function()
+    local GameSpeeds = GameUI:WaitForChild("GameSpeeds", 5)
+    local Frame15 = GameSpeeds and GameSpeeds:WaitForChild("1.5", 5)
+    local TroopFrame = Frame15 and Frame15:WaitForChild("TroopFrame", 5)
+    local InteractiveButton = TroopFrame and TroopFrame:WaitForChild("InteractiveButton", 5)
+
+    if InteractiveButton then
+        for i = 1, 3 do
+            clickButton(InteractiveButton)
+            task.wait(0.35) -- Giãn cách 0.35 giây
+        end
+    else
+        warn("Không tìm thấy InteractiveButton!")
+    end
+end)
+
+-- ==========================================
+-- PHẦN 2: TỰ ĐỘNG NHẤN BUTTON TRONG AUTOSKIP (Đã đổi thành spam 3 lần, mỗi 0.35s)
+-- ==========================================
+task.spawn(function()
+    local Stats = GameUI:WaitForChild("Stats", 5)
+    local AutoSkip = Stats and Stats:WaitForChild("AutoSkip", 5)
+    local Button = AutoSkip and AutoSkip:WaitForChild("Button", 5)
+
+    if Button then
+        for i = 1, 3 do
+            clickButton(Button)
+            task.wait(0.35) -- Giãn cách 0.35 giây
+        end
+    else
+        warn("Không tìm thấy Button trong AutoSkip!")
+    end
+end)
