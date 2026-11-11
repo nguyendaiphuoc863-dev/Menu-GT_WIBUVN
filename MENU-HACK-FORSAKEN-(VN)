@@ -29,6 +29,54 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 
+local USE_TOUCH_INPUT = UIS.TouchEnabled
+local ACTIVE_TOUCH_ID = 17
+local ACTIVE_INPUT_MODE = nil
+local function sendPointerMove(x, y)
+	if USE_TOUCH_INPUT and VirtualInputManager.SendTouchEvent then
+		if ACTIVE_INPUT_MODE ~= "Touch" then return true end
+		return pcall(function()
+			VirtualInputManager:SendTouchEvent(ACTIVE_TOUCH_ID, Enum.UserInputState.Change, x, y)
+		end)
+	end
+	ACTIVE_INPUT_MODE = "Mouse"
+	return pcall(function()
+		VirtualInputManager:SendMouseMoveEvent(x, y, game)
+	end)
+end
+local function sendPointerDown(x, y)
+	if USE_TOUCH_INPUT and VirtualInputManager.SendTouchEvent then
+		local ok = pcall(function()
+			VirtualInputManager:SendTouchEvent(ACTIVE_TOUCH_ID, Enum.UserInputState.Begin, x, y)
+		end)
+		if ok then ACTIVE_INPUT_MODE = "Touch" return true end
+	end
+	ACTIVE_INPUT_MODE = "Mouse"
+	return pcall(function()
+		VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+	end)
+end
+local function sendPointerUp(x, y)
+	if ACTIVE_INPUT_MODE == "Touch" and VirtualInputManager.SendTouchEvent then
+		local ok = pcall(function()
+			VirtualInputManager:SendTouchEvent(ACTIVE_TOUCH_ID, Enum.UserInputState.End, x, y)
+		end)
+		ACTIVE_INPUT_MODE = nil
+		if ok then return true end
+	end
+	ACTIVE_INPUT_MODE = nil
+	return pcall(function()
+		VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+	end)
+end
+local function sendPointerTap(x, y)
+	sendPointerMove(x, y)
+	task.wait(0.015)
+	sendPointerDown(x, y)
+	task.wait(0.025)
+	sendPointerUp(x, y)
+end
+
 local PlayersFolder = workspace:WaitForChild("Players")
 local KillersFolder = PlayersFolder:WaitForChild("Killers")
 local SurvivorsFolder = PlayersFolder:WaitForChild("Survivors")
@@ -163,9 +211,9 @@ FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 FullbrightBtn.TextColor3 = Color3.new(1,1,1)
 
 local AutoGenBtn = Instance.new("TextButton", MainPage)
-AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
+AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 36)
 AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
+AutoGenBtn.Text = "AUTO FIX GEN: OFF"
 AutoGenBtn.TextScaled = true
 AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 AutoGenBtn.TextColor3 = Color3.new(1,1,1)
@@ -1310,9 +1358,9 @@ local function dragAlongFramesSmooth(pathCells)
 		return false
 	end
 	local startX, startY = getCenterPosition(firstCell.frame)
-	VirtualInputManager:SendMouseMoveEvent(startX, startY, game)
+	sendPointerMove(startX, startY, game)
 	task.wait(0.03)
-	VirtualInputManager:SendMouseButtonEvent(startX, startY, 0, true, game, 1)
+	sendPointerDown(startX, startY)
 	task.wait(0.04)
 	for idx = 2, #pathCells do
 		local prevX, prevY = getCenterPosition(pathCells[idx - 1].frame)
@@ -1322,14 +1370,14 @@ local function dragAlongFramesSmooth(pathCells)
 			local alpha = i / steps
 			local curX = prevX + (nextX - prevX) * alpha
 			local curY = prevY + (nextY - prevY) * alpha
-			VirtualInputManager:SendMouseMoveEvent(curX, curY, game)
+			sendPointerMove(curX, curY, game)
 			task.wait(0.0075)
 		end
 	end
 	local endX, endY = getCenterPosition(lastCell.frame)
-	VirtualInputManager:SendMouseMoveEvent(endX, endY, game)
+	sendPointerMove(endX, endY, game)
 	task.wait(0.03)
-	VirtualInputManager:SendMouseButtonEvent(endX, endY, 0, false, game, 1)
+	sendPointerUp(endX, endY)
 	task.wait(0.1)
 	local success = hasActiveHalfLine(firstCell.frame) and hasActiveHalfLine(lastCell.frame)
 	releaseMouse("Flow")
@@ -1338,11 +1386,11 @@ end
 local function clearPairLine(pair)
 	if not acquireMouse("Flow") then return end
 	local cx, cy = getCenterPosition(pair.c1.frame)
-	VirtualInputManager:SendMouseMoveEvent(cx, cy, game)
+	sendPointerMove(cx, cy, game)
 	task.wait(0.02)
-	VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+	sendPointerDown(cx, cy)
 	task.wait(0.03)
-	VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+	sendPointerUp(cx, cy)
 	task.wait(0.04)
 	releaseMouse("Flow")
 end
@@ -1509,21 +1557,21 @@ local function dragBlob(startFrame, endFrame)
 	local savedMouse = UIS:GetMouseLocation()
 	local startX, startY = getGuiCenter(startFrame)
 	local endX, endY = getGuiCenter(endFrame)
-	VirtualInputManager:SendMouseMoveEvent(startX, startY, game)
+	sendPointerMove(startX, startY, game)
 	task.wait()
-	VirtualInputManager:SendMouseButtonEvent(startX, startY, 0, true, game, 1)
+	sendPointerDown(startX, startY)
 	task.wait()
 	for step = 1, 5 do
 		local alpha = step / 5
 		local x = startX + (endX - startX) * alpha
 		local y = startY + (endY - startY) * alpha
-		VirtualInputManager:SendMouseMoveEvent(x, y, game)
+		sendPointerMove(x, y)
 		task.wait()
 	end
-	VirtualInputManager:SendMouseMoveEvent(endX, endY, game)
+	sendPointerMove(endX, endY, game)
 	task.wait()
-	VirtualInputManager:SendMouseButtonEvent(endX, endY, 0, false, game, 1)
-	VirtualInputManager:SendMouseMoveEvent(savedMouse.X, savedMouse.Y, game)
+	sendPointerUp(endX, endY)
+	sendPointerMove(savedMouse.X, savedMouse.Y, game)
 	releaseMouse("Blob")
 	return true
 end
@@ -1563,7 +1611,13 @@ local function hasValidConnectServerGenerator()
 		end
 	end
 
-	return closestGenerator ~= nil and minDistance <= 35 and closestGenerator:GetAttribute("Puzzle") == "ConnectServerMinigame"
+	if not closestGenerator or minDistance > 35 then return false end
+	local puzzle = closestGenerator:GetAttribute("Puzzle")
+	if puzzle == nil then
+		local value = closestGenerator:FindFirstChild("Puzzle", true)
+		if value and value:IsA("ValueBase") then puzzle = value.Value end
+	end
+	return tostring(puzzle) == "ConnectServerMinigame"
 end
 local function processBlobs()
 	if blobBusy then return end
@@ -1621,7 +1675,7 @@ local gearX, gearY = 0, 0
 local gearAngle = 0
 local function releaseGearMouse()
 	if gearHolding then
-		VirtualInputManager:SendMouseButtonEvent(gearX, gearY, 0, false, game, 1)
+		sendPointerUp(gearX, gearY)
 		gearHolding = false
 	end
 	releaseMouse("Gear")
@@ -1650,9 +1704,13 @@ local function hasValidGearServerGenerator()
 		end
 	end
 
-	return closestGenerator ~= nil
-		and minDistance <= 35
-		and closestGenerator:GetAttribute("Puzzle") == "GearServerMinigame"
+	if not closestGenerator or minDistance > 35 then return false end
+	local puzzle = closestGenerator:GetAttribute("Puzzle")
+	if puzzle == nil then
+		local value = closestGenerator:FindFirstChild("Puzzle", true)
+		if value and value:IsA("ValueBase") then puzzle = value.Value end
+	end
+	return tostring(puzzle) == "GearServerMinigame"
 end
 
 local function findFlyingGear()
@@ -1692,20 +1750,20 @@ local function rotateFlyingGear()
 	if not gearHolding then
 		gearX = cx + math.cos(gearAngle) * radius
 		gearY = cy + math.sin(gearAngle) * radius
-		VirtualInputManager:SendMouseMoveEvent(gearX, gearY, game)
+		sendPointerMove(gearX, gearY, game)
 		task.wait()
 		if not states.Gear then
 			releaseGearMouse()
 			return
 		end
-		VirtualInputManager:SendMouseButtonEvent(gearX, gearY, 0, true, game, 1)
+		sendPointerDown(gearX, gearY)
 		gearHolding = true
 	end
 	for _ = 1, 3 do
 		gearAngle = (gearAngle + 0.28) % (math.pi * 2)
 		gearX = cx + math.cos(gearAngle) * radius
 		gearY = cy + math.sin(gearAngle) * radius
-		VirtualInputManager:SendMouseMoveEvent(gearX, gearY, game)
+		sendPointerMove(gearX, gearY, game)
 	end
 end
 task.spawn(function()
@@ -1868,9 +1926,9 @@ local function processCircleTiming()
 		if camera then
 			local viewport = camera.ViewportSize
 			local x, y = viewport.X * 0.5, viewport.Y * 0.5
-			VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+			sendPointerDown(x, y)
 			task.wait()
-			VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+			sendPointerUp(x, y)
 		end
 		releaseMouse("Circle")
 	end
@@ -1906,14 +1964,14 @@ local function setAutoGeneratorFeatures(enabled)
 	end
 end
 
-AutoGenBtn.MouseButton1Click:Connect(function()
+AutoGenBtn.Activated:Connect(function()
 	AUTO_GEN = not AUTO_GEN
 	setAutoGeneratorFeatures(AUTO_GEN)
 	if AUTO_GEN then
-		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): ON"
+		AutoGenBtn.Text = "AUTO FIX GEN: ON"
 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
 	else
-		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
+		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 	end
 end)
