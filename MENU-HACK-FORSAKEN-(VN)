@@ -17,7 +17,7 @@ local GEN_OUTLINE_COLOR = Color3.fromRGB(255, 255, 255)
 local ITEM_COLOR = Color3.fromRGB(0, 175, 255)
 local FRIEND_COLOR = Color3.fromRGB(255, 255, 0)
 local SPECTATE_COLOR = Color3.fromRGB(124, 124, 124)
-local GEAR_COLOR = Color3.fromRGB(35, 65, 35) 
+local GEAR_COLOR = Color3.fromRGB(35, 65, 35)
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -25,6 +25,9 @@ local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
 
 local PlayersFolder = workspace:WaitForChild("Players")
 local KillersFolder = PlayersFolder:WaitForChild("Killers")
@@ -36,14 +39,14 @@ local Ingame = MapFolder:WaitForChild("Ingame")
 
 local SprintModule
 pcall(function()
-    local SprintScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Sprinting")
-    if SprintScript then SprintModule = require(SprintScript) end
+	local SprintScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Sprinting")
+	if SprintScript then SprintModule = require(SprintScript) end
 end)
 
 local StatusModule
 pcall(function()
-    local StatusScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Status") or ReplicatedStorage:WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("State")
-    if StatusScript then StatusModule = require(StatusScript) end
+	local StatusScript = game:GetService("ReplicatedStorage"):WaitForChild("Systems"):WaitForChild("Character"):WaitForChild("Game"):FindFirstChild("Status")
+	if StatusScript then StatusModule = require(StatusScript) end
 end)
 
 local GEN_CACHE = {}
@@ -56,7 +59,7 @@ local PLAYER_CONNECTION = nil
 
 local SPEED_MULTIPLIER = 1.15
 local SPEED_CONNECTION = nil
-local HITBOX_CONNECTION = nil 
+local HITBOX_CONNECTION = nil
 local NORMAL_WALK_SPEED = 16
 local lastBlinkTime = os.clock()
 local desyncInterval = 0.06
@@ -162,11 +165,9 @@ FullbrightBtn.TextColor3 = Color3.new(1,1,1)
 local AutoGenBtn = Instance.new("TextButton", MainPage)
 AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
 AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-AutoGenBtn.Text = "AUTO FIX GEN: OFF (ERROR - FIXING)"
+AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
 AutoGenBtn.TextScaled = true
-AutoGenBtn.AutoButtonColor = false
-AutoGenBtn.Active = false
-AutoGenBtn.BackgroundColor3 = Color3.fromRGB(128,128,128)
+AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 AutoGenBtn.TextColor3 = Color3.new(1,1,1)
 
 local SpeedBtn = Instance.new("TextButton", MainPage)
@@ -180,7 +181,7 @@ SpeedBtn.TextColor3 = Color3.new(1,1,1)
 local SpeedInput = Instance.new("TextBox", MainPage)
 SpeedInput.Size = UDim2.new(0.9, 0, 0, 30)
 SpeedInput.Position = UDim2.new(0.05, 0, 0.65, 0)
-SpeedInput.Text = "1.15x" 
+SpeedInput.Text = "1.15x"
 SpeedInput.PlaceholderText = "Speed Multiplier"
 SpeedInput.TextScaled = true
 SpeedInput.BackgroundColor3 = Color3.fromRGB(45,45,45)
@@ -249,7 +250,7 @@ InfoLabel.Position = UDim2.new(0, 5, 1, -38)
 InfoLabel.BackgroundTransparency = 1
 InfoLabel.Text = "Status: Ready (Maximum speed: 1.35x)"
 InfoLabel.TextScaled = true
-InfoLabel.TextColor3 = Color3.fromRGB(0, 230, 120) 
+InfoLabel.TextColor3 = Color3.fromRGB(0, 230, 120)
 InfoLabel.Font = Enum.Font.SourceSansBold
 
 local Credit = Instance.new("TextLabel", MainFrame)
@@ -291,7 +292,6 @@ end)
 
 local RestoreCorner = Instance.new("UICorner", RestoreBtn)
 RestoreCorner.CornerRadius = UDim.new(1, 0)
-
 
 local dragging = false
 local dragStart = nil
@@ -341,7 +341,11 @@ local function endDrag(input)
 end
 
 MainFrame.InputBegan:Connect(function(input)
-	beginDrag(input, MainFrame)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+
+		beginDrag(input, MainFrame)
+	end
 end)
 
 RestoreBtn.InputBegan:Connect(function(input)
@@ -391,16 +395,28 @@ local function getPlayerTeamColor(player)
 end
 
 local RawMetatable = getrawmetatable and getrawmetatable(game)
+
 if RawMetatable and makewriteable then
-    makewriteable(RawMetatable)
-    local OldIndex = RawMetatable.__index
-    
-    RawMetatable.__index = newcclosure(function(self, key)
-        if STAMINA_ENABLED and tostring(self) == "Humanoid" and (key == "WalkSpeed" or key == "SprintSpeed") then
-            return 16
-        end
-        return OldIndex(self, key)
-    end)
+	makewriteable(RawMetatable)
+
+	local OldIndex = RawMetatable.__index
+
+	RawMetatable.__index = newcclosure(function(self, key)
+		if STAMINA_ENABLED
+			and typeof(self) == "Instance"
+			and self:IsA("Humanoid")
+			and (key == "WalkSpeed" or key == "SprintSpeed") then
+			return 16
+		end
+
+		if typeof(OldIndex) == "function" then
+			return OldIndex(self, key)
+		elseif typeof(OldIndex) == "table" then
+			return OldIndex[key]
+		end
+
+		return nil
+	end)
 end
 
 local function applyPlayerESP()
@@ -438,7 +454,7 @@ local function startPlayerESP()
 			applyPlayerESP()
 			task.wait(0.25)
 		end
-		
+
 		PLAYER_CONNECTION = nil
 	end)
 end
@@ -460,11 +476,11 @@ local function removePlayerESP()
 end
 
 local function ResetToGameDefault(Humanoid)
-    if Humanoid then
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-        Humanoid.JumpPower = 0
-        Humanoid.JumpHeight = 0
-    end
+	if Humanoid then
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+		Humanoid.JumpPower = 0
+		Humanoid.JumpHeight = 0
+	end
 end
 
 local function enableFullbright()
@@ -492,60 +508,60 @@ local function disableFullbright()
 end
 
 local function startSpeed()
-    if SPEED_CONNECTION then return end
-    
-    SPEED_CONNECTION = RunService.Heartbeat:Connect(function(deltaTime)
-        if not SPEED_ENABLED then return end
-        
-        local character = LocalPlayer.Character
-        if not character then return end
-        
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        
-        if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
-            local moveDirectionXZ = Vector3.new(humanoid.MoveDirection.X, 0, humanoid.MoveDirection.Z).Unit
-            local walkSpeed = humanoid.WalkSpeed
-            local finalMultiplier = SPEED_MULTIPLIER
-            
-            if walkSpeed > 24 then 
-                finalMultiplier = 1.0
-            elseif walkSpeed > 16 then
-                finalMultiplier = math.min(SPEED_MULTIPLIER, 1.08)
-            end
-            
-            if finalMultiplier > 1 then
-                local calculatedMove = moveDirectionXZ * (walkSpeed * (finalMultiplier - 1)) * deltaTime
-                local currentCFrame = rootPart.CFrame
-                local newPosition = currentCFrame.Position + calculatedMove
-                
-                local targetCFrame = CFrame.new(newPosition.X, currentCFrame.Position.Y, newPosition.Z) * (currentCFrame - currentCFrame.Position)
-                character:PivotTo(targetCFrame)
-            end
-            
-            pcall(function()
-                rootPart.AssemblyLinearVelocity = Vector3.new(
-                    moveDirectionXZ.X * (walkSpeed * finalMultiplier),
-                    rootPart.AssemblyLinearVelocity.Y, 
-                    moveDirectionXZ.Z * (walkSpeed * finalMultiplier)
-                )
-                rootPart.AssemblyAngularVelocity = Vector3.zero
-            end)
-        end
-    end)
+	if SPEED_CONNECTION then return end
 
-    HITBOX_CONNECTION = RunService.RenderStepped:Connect(function()
-        local character = LocalPlayer.Character
-        if not character then return end
-        
-        local rootPart = character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then return end
-        
-        local queryHitbox = character:FindFirstChild("QueryHitbox", true) 
-        if queryHitbox and queryHitbox:IsA("BasePart") then
-            queryHitbox.CFrame = rootPart.CFrame
-        end
-    end)
+	SPEED_CONNECTION = RunService.Heartbeat:Connect(function(deltaTime)
+		if not SPEED_ENABLED then return end
+
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+		if rootPart and humanoid and humanoid.Health > 0 and humanoid.MoveDirection.Magnitude > 0 then
+			local moveDirectionXZ = Vector3.new(humanoid.MoveDirection.X, 0, humanoid.MoveDirection.Z).Unit
+			local walkSpeed = humanoid.WalkSpeed
+			local finalMultiplier = SPEED_MULTIPLIER
+
+			if walkSpeed > 24 then
+				finalMultiplier = 1.0
+			elseif walkSpeed > 16 then
+				finalMultiplier = math.min(SPEED_MULTIPLIER, 1.08)
+			end
+
+			if finalMultiplier > 1 then
+				local calculatedMove = moveDirectionXZ * (walkSpeed * (finalMultiplier - 1)) * deltaTime
+				local currentCFrame = rootPart.CFrame
+				local newPosition = currentCFrame.Position + calculatedMove
+
+				local targetCFrame = CFrame.new(newPosition.X, currentCFrame.Position.Y, newPosition.Z) * (currentCFrame - currentCFrame.Position)
+				character:PivotTo(targetCFrame)
+			end
+
+			pcall(function()
+				rootPart.AssemblyLinearVelocity = Vector3.new(
+					moveDirectionXZ.X * (walkSpeed * finalMultiplier),
+					rootPart.AssemblyLinearVelocity.Y,
+					moveDirectionXZ.Z * (walkSpeed * finalMultiplier)
+				)
+				rootPart.AssemblyAngularVelocity = Vector3.zero
+			end)
+		end
+	end)
+
+	HITBOX_CONNECTION = RunService.RenderStepped:Connect(function()
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		if not rootPart then return end
+
+		local queryHitbox = character:FindFirstChild("QueryHitbox", true)
+		if queryHitbox and queryHitbox:IsA("BasePart") then
+			queryHitbox.CFrame = rootPart.CFrame
+		end
+	end)
 end
 
 local function stopSpeed()
@@ -556,10 +572,10 @@ local function stopSpeed()
 		SPEED_CONNECTION = nil
 	end
 
-	 if HITBOX_CONNECTION then
-        HITBOX_CONNECTION:Disconnect()
-        HITBOX_CONNECTION = nil
-    end
+	if HITBOX_CONNECTION then
+		HITBOX_CONNECTION:Disconnect()
+		HITBOX_CONNECTION = nil
+	end
 
 	local character = LocalPlayer.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -569,347 +585,281 @@ local function stopSpeed()
 	end
 
 	pcall(function()
-        local character = LocalPlayer.Character
-        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            rootPart.AssemblyLinearVelocity = Vector3.zero
-        end
-    end)
+		local character = LocalPlayer.Character
+		local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+		if rootPart then
+			rootPart.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
 end
 
--- local function updateGeneratorESP(gen)
--- 	local highlight = gen:FindFirstChild("GEN_ESP")
--- 	local progress = gen:FindFirstChild("Progress", true)
-
--- 	if highlight and progress then
--- 		if progress.Value >= 100 then
--- 			highlight.FillColor = GEN_COLOR
--- 		else
--- 			highlight.FillColor = Color3.fromRGB(255,175,0)
--- 		end
--- 	end
--- end
-
--- local function doGenerator(gen)
--- 	local main = gen:FindFirstChild("Main")
--- 	if not main then return end
-
--- 	local prompt = main:FindFirstChildOfClass("ProximityPrompt")
--- 	if not prompt then return end
-
--- 	local progress = gen:FindFirstChild("Progress", true)
--- 	if progress and progress.Value >= 100 then
--- 		updateGeneratorESP(gen)
--- 		return
--- 	end
-
--- 	local remotes = gen:FindFirstChild("Remotes") or gen.Parent:FindFirstChild("Remotes")
--- 	if not remotes then return end
-
--- 	for _, re in pairs(remotes:GetChildren()) do
--- 		if re:IsA("RemoteEvent") and re.Name == "RE" then
--- 			pcall(function()
--- 				re:FireServer(prompt)
--- 			end)
--- 		end
--- 	end
-
--- 	task.delay(0.5, function()
--- 		updateGeneratorESP(gen)
--- 	end)
--- end
-
--- local function startAutoGen()
--- 	AUTO_GEN_THREAD = task.spawn(function()
--- 		while AUTO_GEN and not ScreenGui:GetAttribute("Destroyed") do
--- 			pcall(function()
--- 				local mapFolder = workspace:FindFirstChild("Map")
--- 				if mapFolder then
--- 					local ingame = mapFolder:FindFirstChild("Ingame")
--- 					if ingame and ingame:FindFirstChild("Map") then
--- 						for _, gen in pairs(ingame.Map:GetChildren()) do
--- 							if gen:IsA("Model") and (gen.Name == "Generator" or gen:FindFirstChild("Progress", true)) then
--- 								doGenerator(gen)
--- 								task.wait(0.1)
--- 							end
--- 						end
--- 					end
--- 				end
--- 			end)
--- 			task.wait(1)
--- 		end
-
--- 		AUTO_GEN_THREAD = nil
--- 	end)
--- end
-
 local function checkGenCompleted(gen)
-    local attributes = gen:GetAttributes()
-    if attributes then
-        for name, value in pairs(attributes) do
-            local lowerName = name:lower()
-            if lowerName:find("progress") or lowerName:find("state") or lowerName:find("completed") then
-                if value == true or value == 100 or value == 5 or tostring(value):lower() == "complete" then
-                    return true
-                end
-            end
-        end
-    end
+	local attributes = gen:GetAttributes()
+	if attributes then
+		for name, value in pairs(attributes) do
+			local lowerName = name:lower()
+			if lowerName:find("progress") or lowerName:find("state") or lowerName:find("completed") then
+				if value == true or value == 100 or value == 5 or tostring(value):lower() == "complete" then
+					return true
+				end
+			end
+		end
+	end
 
-    for _, ui in ipairs(gen:GetDescendants()) do
-        if ui:IsA("TextLabel") or ui:IsA("TextBox") then
-            local text = ui.Text:lower():gsub("%s+", "")
-            if text:find("5/5") or text:find("4/4") or text:find("100%%") or text:find("complete") or text:find("finished") then
-                return true
-            end
-        end
+	for _, ui in ipairs(gen:GetDescendants()) do
+		if ui:IsA("TextLabel") or ui:IsA("TextBox") then
+			local text = ui.Text:lower():gsub("%s+", "")
+			if text:find("5/5") or text:find("4/4") or text:find("100%%") or text:find("complete") or text:find("finished") then
+				return true
+			end
+		end
 
-        if ui:IsA("Frame") and ui.Name:lower():find("bar") then
-            if ui.Size.X.Scale >= 0.98 then
-                return true
-            end
-        end
-    end
+		if ui:IsA("Frame") and ui.Name:lower():find("bar") then
+			if ui.Size.X.Scale >= 0.98 then
+				return true
+			end
+		end
+	end
 
-    local marker = gen:FindFirstChild("Light", true) or gen:FindFirstChild("Lamp", true) or gen:FindFirstChild("Neon", true)
-    if marker and marker:IsA("BasePart") then
-        if marker.Color == Color3.fromRGB(0, 255, 0) or marker.Material == Enum.Material.Neon then
-            return true
-        end
-    end
+	local marker = gen:FindFirstChild("Light", true) or gen:FindFirstChild("Lamp", true) or gen:FindFirstChild("Neon", true)
+	if marker and marker:IsA("BasePart") then
+		if marker.Color == Color3.fromRGB(0, 255, 0) or marker.Material == Enum.Material.Neon then
+			return true
+		end
+	end
 
-    return false
+	return false
 end
 
 local function setupGenerator(gen)
-    if not gen:IsA("Model") then return end
-    
-    local highlight = gen:FindFirstChild("GEN_ESP")
-    if not highlight then
-        highlight = Instance.new("Highlight")
-        highlight.Name = "GEN_ESP"
-        highlight.Adornee = gen
-        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        highlight.FillTransparency = 0.4
-        highlight.OutlineTransparency = 0.1
-        highlight.OutlineColor = GEN_OUTLINE_COLOR
-        highlight.Parent = gen
-    end
+	if not gen:IsA("Model") then return end
 
-    GEN_CACHE[gen] = true
+	local highlight = gen:FindFirstChild("GEN_ESP")
+	if not highlight then
+		highlight = Instance.new("Highlight")
+		highlight.Name = "GEN_ESP"
+		highlight.Adornee = gen
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.FillTransparency = 0.4
+		highlight.OutlineTransparency = 0.1
+		highlight.OutlineColor = GEN_OUTLINE_COLOR
+		highlight.Parent = gen
+	end
 
-    if highlight and highlight.Parent then
-        if checkGenCompleted(gen) then
-            highlight.FillColor = GEN_COLOR_COMPLETED
-        else
-            highlight.FillColor = GEN_COLOR_INCOMPLETE
-        end
-    end
+	GEN_CACHE[gen] = true
+
+	if highlight and highlight.Parent then
+		if checkGenCompleted(gen) then
+			highlight.FillColor = GEN_COLOR_COMPLETED
+		else
+			highlight.FillColor = GEN_COLOR_INCOMPLETE
+		end
+	end
 end
 
 local function applyGenESP()
-    if GEN_CONNECTION then return end
-    
-    GEN_CONNECTION = task.spawn(function()
-        while GEN_ESP and not ScreenGui:GetAttribute("Destroyed") do
-            pcall(function()
-                local mapFolder = workspace:FindFirstChild("Map")
-                local ingame = mapFolder and mapFolder:FindFirstChild("Ingame")
-                local currentMap = ingame and ingame:FindFirstChild("Map")
-                
-                if currentMap then
-                    local foundCount = 0
-                    for _, obj in pairs(currentMap:GetChildren()) do
-                        if obj:IsA("Model") and obj.Name == "Generator" then
-                            setupGenerator(obj)
-                            foundCount = foundCount + 1
-                        end
-                    end
-                end
-            end)
+	if GEN_CONNECTION then return end
 
-            task.wait(1)
-        end
+	GEN_CONNECTION = task.spawn(function()
+		while GEN_ESP and not ScreenGui:GetAttribute("Destroyed") do
+			pcall(function()
+				local mapFolder = workspace:FindFirstChild("Map")
+				local ingame = mapFolder and mapFolder:FindFirstChild("Ingame")
+				local currentMap = ingame and ingame:FindFirstChild("Map")
 
-        GEN_CONNECTION = nil
-    end)
+				if currentMap then
+					local foundCount = 0
+					for _, obj in pairs(currentMap:GetChildren()) do
+						if obj:IsA("Model") and obj.Name == "Generator" then
+							setupGenerator(obj)
+							foundCount = foundCount + 1
+						end
+					end
+				end
+			end)
+
+			task.wait(1)
+		end
+
+		GEN_CONNECTION = nil
+	end)
 end
 
 local function removeGenESP()
-    if GEN_CONNECTION then
-        task.cancel(GEN_CONNECTION)
-        GEN_CONNECTION = nil
-    end
+	if GEN_CONNECTION then
+		task.cancel(GEN_CONNECTION)
+		GEN_CONNECTION = nil
+	end
 
-    for gen, _ in pairs(GEN_CACHE) do
-        if gen and gen.Parent then
-            local highlight = gen:FindFirstChild("GEN_ESP")
-            if highlight then highlight:Destroy() end
-        end
-    end
+	for gen, _ in pairs(GEN_CACHE) do
+		if gen and gen.Parent then
+			local highlight = gen:FindFirstChild("GEN_ESP")
+			if highlight then highlight:Destroy() end
+		end
+	end
 
-    GEN_CACHE = {}
+	GEN_CACHE = {}
 end
 
 local function setupItemESP(tool)
-    if not tool:IsA("Tool") then return end
-	
-    local existing = tool:FindFirstChild("ITEM_ESP")
-    if existing then return end
+	if not tool:IsA("Tool") then return end
 
-    task.defer(function()
-        if not tool:IsDescendantOf(workspace) then return end
-        if #tool:GetChildren() == 0 then task.wait(0.1) end
-        if not tool:IsDescendantOf(workspace) or tool:FindFirstChild("ITEM_ESP") then return end
+	local existing = tool:FindFirstChild("ITEM_ESP")
+	if existing then return end
 
-        local h = Instance.new("Highlight")
-        h.Name = "ITEM_ESP"
-        h.Adornee = tool
-        h.FillColor = ITEM_COLOR
-        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        h.Parent = tool
+	task.defer(function()
+		if not tool:IsDescendantOf(workspace) then return end
+		if #tool:GetChildren() == 0 then task.wait(0.1) end
+		if not tool:IsDescendantOf(workspace) or tool:FindFirstChild("ITEM_ESP") then return end
 
-        local connection
-        connection = tool.ChildAdded:Connect(function(child)
-            if not ITEM_ESP then 
-                connection:Disconnect() 
-                return 
-            end
-            
-            if child:IsA("Highlight") and child.Name ~= "ITEM_ESP" then
-                task.defer(function()
-                    child:Destroy()
+		local h = Instance.new("Highlight")
+		h.Name = "ITEM_ESP"
+		h.Adornee = tool
+		h.FillColor = ITEM_COLOR
+		h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		h.Parent = tool
 
-                    if h and h.Parent then
-                        h.Enabled = false
-                        h.Enabled = true
-                        h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    end
-                end)
-            end
-        end)
-        
-        h.Destroying:Connect(function()
-            if connection then connection:Disconnect() end
-        end)
-    end)
+		local connection
+		connection = tool.ChildAdded:Connect(function(child)
+			if not ITEM_ESP then
+				connection:Disconnect()
+				return
+			end
+
+			if child:IsA("Highlight") and child.Name ~= "ITEM_ESP" then
+				task.defer(function()
+					child:Destroy()
+
+					if h and h.Parent then
+						h.Enabled = false
+						h.Enabled = true
+						h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+					end
+				end)
+			end
+		end)
+
+		h.Destroying:Connect(function()
+			if connection then connection:Disconnect() end
+		end)
+	end)
 end
 
 local function applyItemESP()
-    ITEM_ESP = true
-    for _, obj in pairs(Ingame:GetDescendants()) do
-        if obj:IsA("Tool") then 
-            setupItemESP(obj) 
-        end
-    end
-    
-    if not ITEM_CONNECTION then
-        ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
-            if ScreenGui:GetAttribute("Destroyed") then 
-                ITEM_CONNECTION:Disconnect() 
-                ITEM_CONNECTION = nil 
-                return 
-            end
-            if ITEM_ESP and obj:IsA("Tool") then 
-                setupItemESP(obj) 
-            end
-        end)
-    end
+	ITEM_ESP = true
+	for _, obj in pairs(Ingame:GetDescendants()) do
+		if obj:IsA("Tool") then
+			setupItemESP(obj)
+		end
+	end
+
+	if not ITEM_CONNECTION then
+		ITEM_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
+			if ScreenGui:GetAttribute("Destroyed") then
+				ITEM_CONNECTION:Disconnect()
+				ITEM_CONNECTION = nil
+				return
+			end
+			if ITEM_ESP and obj:IsA("Tool") then
+				setupItemESP(obj)
+			end
+		end)
+	end
 end
 
 local function removeItemESP()
-    ITEM_ESP = false
-    for _, obj in pairs(Ingame:GetDescendants()) do
-        if obj:IsA("Tool") then
-            for _, child in pairs(obj:GetChildren()) do
-                if child:IsA("Highlight") and child.Name == "ITEM_ESP" then
-                    child:Destroy()
-                end
-            end
-        end
-    end
-    if ITEM_CONNECTION then 
-        ITEM_CONNECTION:Disconnect() 
-        ITEM_CONNECTION = nil 
-    end
+	ITEM_ESP = false
+	for _, obj in pairs(Ingame:GetDescendants()) do
+		if obj:IsA("Tool") then
+			for _, child in pairs(obj:GetChildren()) do
+				if child:IsA("Highlight") and child.Name == "ITEM_ESP" then
+					child:Destroy()
+				end
+			end
+		end
+	end
+	if ITEM_CONNECTION then
+		ITEM_CONNECTION:Disconnect()
+		ITEM_CONNECTION = nil
+	end
 end
 
 local function setupGearESP(object, color, espName)
-    if not GEAR_ESP or object:FindFirstChild(espName) then return false end 
-    if not object:IsDescendantOf(workspace) then return false end
+	if not GEAR_ESP or object:FindFirstChild(espName) then return false end
+	if not object:IsDescendantOf(workspace) then return false end
 
-    local h = Instance.new("Highlight")
-    h.Name = espName
-    h.Adornee = object
-    h.FillColor = color
-    h.OutlineColor = Color3.fromRGB(255, 255, 255)
-    h.FillTransparency = 0.4
-    h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    h.Parent = ScreenGui
-    
-    local connection
-    connection = object.AncestryChanged:Connect(function()
-        if not object:IsDescendantOf(workspace) then
-            h:Destroy()
-            if connection then connection:Disconnect() end
-        end
-    end)
+	local h = Instance.new("Highlight")
+	h.Name = espName
+	h.Adornee = object
+	h.FillColor = color
+	h.OutlineColor = Color3.fromRGB(255, 255, 255)
+	h.FillTransparency = 0.4
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent = ScreenGui
 
-    return true
+	local connection
+	connection = object.AncestryChanged:Connect(function()
+		if not object:IsDescendantOf(workspace) then
+			h:Destroy()
+			if connection then connection:Disconnect() end
+		end
+	end)
+
+	return true
 end
 
 local function isGear(obj)
-    if obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("BasePart") then
-        local nameLower = string.lower(obj.Name)
-        if string.find(nameLower, "gear") then
-            return true
-        end
-    end
-    return false
+	if obj:IsA("Model") or obj:IsA("MeshPart") or obj:IsA("BasePart") then
+		local nameLower = string.lower(obj.Name)
+		if string.find(nameLower, "gear") then
+			return true
+		end
+	end
+	return false
 end
 
 local function applyGearESP()
-    GEAR_ESP = true
-    
-    task.spawn(function()
-        local descendants = Ingame:GetDescendants()
-        for _, obj in pairs(descendants) do
-            if not GEAR_ESP then break end
-            
-            if isGear(obj) then
-                local success = setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
-               
-                if success then
-                    task.wait(0.15) 
-                end
-            end
-        end
-    end)
-    
-    if GEAR_CONNECTION then GEAR_CONNECTION:Disconnect() end
-    GEAR_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
-        if GEAR_ESP and isGear(obj) then
-            task.wait(0.15)
-            if GEAR_ESP then
-                setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
-            end
-        end
-    end)
+	GEAR_ESP = true
+
+	task.spawn(function()
+		local descendants = Ingame:GetDescendants()
+		for _, obj in pairs(descendants) do
+			if not GEAR_ESP then break end
+
+			if isGear(obj) then
+				local success = setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
+
+				if success then
+					task.wait(0.15)
+				end
+			end
+		end
+	end)
+
+	if GEAR_CONNECTION then GEAR_CONNECTION:Disconnect() end
+	GEAR_CONNECTION = Ingame.DescendantAdded:Connect(function(obj)
+		if GEAR_ESP and isGear(obj) then
+			task.wait(0.15)
+			if GEAR_ESP then
+				setupGearESP(obj, GEAR_COLOR, "GEAR_ESP_TAG")
+			end
+		end
+	end)
 end
 
 local function removeGearESP()
-    GEAR_ESP = false
-    
-    if GEAR_CONNECTION then 
-        GEAR_CONNECTION:Disconnect() 
-        GEAR_CONNECTION = nil 
-    end
-    
-    for _, tag in pairs(ScreenGui:GetChildren()) do
-        if tag:IsA("Highlight") then
-            tag:Destroy()
-        end
-    end
+	GEAR_ESP = false
+
+	if GEAR_CONNECTION then
+		GEAR_CONNECTION:Disconnect()
+		GEAR_CONNECTION = nil
+	end
+
+	for _, tag in pairs(ScreenGui:GetChildren()) do
+		if tag:IsA("Highlight") then
+			tag:Destroy()
+		end
+	end
 end
 
 PlayerBtn.MouseButton1Click:Connect(function()
@@ -968,20 +918,1005 @@ FullbrightBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- AutoGenBtn.MouseButton1Click:Connect(function()
--- 	AUTO_GEN = not AUTO_GEN
--- 	if AUTO_GEN then
--- 		AutoGenBtn.Text = "AUTO FIX GEN: ON"
--- 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
--- 		startAutoGen()
--- 	else
--- 		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
--- 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
--- 		if AUTO_GEN_THREAD then
--- 			task.cancel(AUTO_GEN_THREAD)
--- 		end
--- 	end
--- end)
+local states = {
+	Flow = false,
+	Blob = false,
+	Gear = false,
+	Circle = false
+}
+local cachedSolutions = {}
+local blockerClearCount = {}
+local circleEnableTime = 0
+local mouseOwner = nil
+local function acquireMouse(owner)
+	if mouseOwner ~= nil and mouseOwner ~= owner then
+		return false
+	end
+	mouseOwner = owner
+	return true
+end
+local function releaseMouse(owner)
+	if mouseOwner == owner then
+		mouseOwner = nil
+	end
+end
+local DIRS = {
+	{dr = -1, dc = 0},
+	{dr = 1, dc = 0},
+	{dr = 0, dc = -1},
+	{dr = 0, dc = 1}
+}
+local function isGeneratorFlowServer(genModel)
+	local attrVal = genModel:GetAttribute("Puzzle")
+	if attrVal ~= nil and tostring(attrVal) == "FlowServerMinigame" then
+		return true
+	end
+	local puzzleObj = genModel:FindFirstChild("Puzzle", true)
+	if puzzleObj and puzzleObj:IsA("ValueBase") and tostring(puzzleObj.Value) == "FlowServerMinigame" then
+		return true
+	end
+	return false
+end
+local function hasValidFlowServerGenerator()
+	local mapFolder = workspace:FindFirstChild("Map")
+	local ingameFolder = mapFolder and mapFolder:FindFirstChild("Ingame")
+	local innerMap = ingameFolder and ingameFolder:FindFirstChild("Map")
+	if not innerMap then
+		return false, "Waiting for Map -> Ingame -> Map..."
+	end
+	local generators = {}
+	for _, obj in ipairs(innerMap:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			table.insert(generators, obj)
+		end
+	end
+	if #generators == 0 then
+		return false, "No Generator found in Map!"
+	end
+	local char = LocalPlayer.Character
+	local root = char and (char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart)
+	if root then
+		local closestGen = nil
+		local minDist = math.huge
+		for _, gen in ipairs(generators) do
+			local genPos = gen:GetPivot().Position
+			local dist = (root.Position - genPos).Magnitude
+			if dist < minDist then
+				minDist = dist
+				closestGen = gen
+			end
+		end
+		if closestGen and minDist <= 35 then
+			if isGeneratorFlowServer(closestGen) then
+				return true, "Valid: FlowServerMinigame"
+			else
+				return false, "This Generator is not FlowServerMinigame"
+			end
+		end
+	end
+	for _, gen in ipairs(generators) do
+		if isGeneratorFlowServer(gen) then
+			return true, "Valid: FlowServerMinigame"
+		end
+	end
+	return false, "No FlowServerMinigame Generator found"
+end
+local function getColorKey(c)
+	return string.format("%d_%d_%d", math.round(c.R * 255), math.round(c.G * 255), math.round(c.B * 255))
+end
+local function isDarkBackground(c)
+	return (c.R * 255 <= 35) and (c.G * 255 <= 35) and (c.B * 255 <= 35)
+end
+local function getCenterPosition(guiObject)
+	local inset = GuiService:GetGuiInset()
+	local pos = guiObject.AbsolutePosition
+	local size = guiObject.AbsoluteSize
+	local x = pos.X + (size.X / 2) + inset.X
+	local y = pos.Y + (size.Y / 2) + inset.Y
+	return x, y
+end
+local function hasActiveHalfLine(cellFrame)
+	for _, desc in ipairs(cellFrame:GetDescendants()) do
+		if desc:IsA("GuiObject") and desc.Name ~= "Circle" and not desc:IsA("TextButton") and not desc:IsA("TextLabel") then
+			local nameLower = string.lower(desc.Name)
+			local isLineName = string.find(nameLower, "halfline") ~= nil
+				or nameLower == "left"
+				or nameLower == "right"
+				or nameLower == "up"
+				or nameLower == "down"
+			if isLineName and desc.Visible and desc.BackgroundTransparency < 0.95 then
+				if not isDarkBackground(desc.BackgroundColor3) then
+					return true, getColorKey(desc.BackgroundColor3)
+				end
+			end
+		end
+	end
+	return false, nil
+end
+local function buildGridMap(gridFolder)
+	local rawCells = {}
+	for _, child in ipairs(gridFolder:GetChildren()) do
+		if child:IsA("Frame") and child.Visible and child.AbsoluteSize.X > 10 and child.AbsoluteSize.Y > 10 then
+			local hasLine, lineColorKey = hasActiveHalfLine(child)
+			table.insert(rawCells, {
+				frame = child,
+				cx = child.AbsolutePosition.X + child.AbsoluteSize.X * 0.5,
+				cy = child.AbsolutePosition.Y + child.AbsoluteSize.Y * 0.5,
+				w = child.AbsoluteSize.X,
+				h = child.AbsoluteSize.Y,
+				hasLine = hasLine,
+				lineColorKey = lineColorKey
+			})
+		end
+	end
+	local _, firstCell = next(rawCells)
+	if not firstCell then return nil, 0, 0, "" end
+	local tolX = firstCell.w * 0.35
+	local tolY = firstCell.h * 0.35
+	local rowCenters = {}
+	local colCenters = {}
+	local function registerCoord(list, val, tol)
+		for _, v in ipairs(list) do
+			if math.abs(v - val) <= tol then
+				return
+			end
+		end
+		table.insert(list, val)
+	end
+	for _, item in ipairs(rawCells) do
+		registerCoord(rowCenters, item.cy, tolY)
+		registerCoord(colCenters, item.cx, tolX)
+	end
+	table.sort(rowCenters)
+	table.sort(colCenters)
+	local function getNearestIndex(list, val)
+		local bestIdx = 1
+		local bestDiff = math.huge
+		for idx, v in ipairs(list) do
+			local diff = math.abs(v - val)
+			if diff < bestDiff then
+				bestDiff = diff
+				bestIdx = idx
+			end
+		end
+		return bestIdx
+	end
+	local grid = {}
+	for r = 1, #rowCenters do
+		grid[r] = {}
+	end
+	for _, item in ipairs(rawCells) do
+		local r = getNearestIndex(rowCenters, item.cy)
+		local c = getNearestIndex(colCenters, item.cx)
+		local circleObj = item.frame:FindFirstChild("Circle", true)
+		local hasCircle = (circleObj and circleObj:IsA("Frame") and circleObj.Visible)
+		local colorKey = hasCircle and getColorKey(circleObj.BackgroundColor3) or nil
+		grid[r][c] = {
+			r = r,
+			c = c,
+			frame = item.frame,
+			hasCircle = hasCircle,
+			colorKey = colorKey,
+			hasLine = item.hasLine,
+			lineColorKey = item.lineColorKey,
+			isWalkableTile = (not hasCircle),
+			isEmpty = (not hasCircle) and (not item.hasLine)
+		}
+	end
+	local sigParts = {tostring(#rowCenters) .. "x" .. tostring(#colCenters)}
+	for r = 1, #rowCenters do
+		for c = 1, #colCenters do
+			local cell = grid[r][c]
+			if cell and cell.hasCircle then
+				table.insert(sigParts, string.format("%d_%d:%s", r, c, cell.colorKey or ""))
+			end
+		end
+	end
+	return grid, #rowCenters, #colCenters, table.concat(sigParts, "|")
+end
+local function hasReachablePathsForAll(grid, maxR, maxC, pairList, startIndex, blocked)
+	local function key(r, c) return r * 100 + c end
+	for i = startIndex, #pairList do
+		local p = pairList[i]
+		local queue = {{r = p.c1.r, c = p.c1.c}}
+		local visited = {[key(p.c1.r, p.c1.c)] = true}
+		local found = false
+		local head = 1
+		while head <= #queue do
+			local curr = queue[head]
+			head = head + 1
+			if curr.r == p.c2.r and curr.c == p.c2.c then
+				found = true
+				break
+			end
+			for _, d in ipairs(DIRS) do
+				local nr, nc = curr.r + d.dr, curr.c + d.dc
+				local k = key(nr, nc)
+				if nr >= 1 and nr <= maxR and nc >= 1 and nc <= maxC and not visited[k] and not blocked[k] then
+					local nb = grid[nr][nc]
+					if nb and ((nr == p.c2.r and nc == p.c2.c) or nb.isWalkableTile) then
+						visited[k] = true
+						table.insert(queue, {r = nr, c = nc})
+					end
+				end
+			end
+		end
+		if not found then
+			return false
+		end
+	end
+	return true
+end
+local function findCleanShortestPath(grid, maxR, maxC, startCell, endCell, blockedMap)
+	local function key(r, c) return r * 100 + c end
+	local queue = {{r = startCell.r, c = startCell.c, lastDr = 0, lastDc = 0, turns = 0, dist = 0}}
+	local bestCost = {[key(startCell.r, startCell.c)] = 0}
+	local parent = {}
+	local head = 1
+	while head <= #queue do
+		local curr = queue[head]
+		head = head + 1
+		if curr.r == endCell.r and curr.c == endCell.c then
+			local pathCells = {}
+			local trace = {r = endCell.r, c = endCell.c}
+			while trace do
+				table.insert(pathCells, 1, grid[trace.r][trace.c])
+				trace = parent[key(trace.r, trace.c)]
+			end
+			return pathCells
+		end
+		for _, d in ipairs(DIRS) do
+			local nr, nc = curr.r + d.dr, curr.c + d.dc
+			local k = key(nr, nc)
+			if nr >= 1 and nr <= maxR and nc >= 1 and nc <= maxC then
+				local isDest = (nr == endCell.r and nc == endCell.c)
+				local nb = grid[nr][nc]
+				local isBlocked = blockedMap and blockedMap[k]
+				if isDest or (nb and nb.isWalkableTile and not isBlocked) then
+					local turnPenalty = (curr.lastDr ~= 0 or curr.lastDc ~= 0) and (curr.lastDr ~= d.dr or curr.lastDc ~= d.dc) and 1 or 0
+					local newCost = (curr.dist + 1) * 10 + curr.turns + turnPenalty
+					if not bestCost[k] or newCost < bestCost[k] then
+						bestCost[k] = newCost
+						parent[k] = {r = curr.r, c = curr.c}
+						table.insert(queue, {
+							r = nr,
+							c = nc,
+							lastDr = d.dr,
+							lastDc = d.dc,
+							turns = curr.turns + turnPenalty,
+							dist = curr.dist + 1
+						})
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+local function solveFullBoardClean(grid, maxR, maxC, allPairs)
+	local blocked = {}
+	local function key(r, c) return r * 100 + c end
+	for r = 1, maxR do
+		for c = 1, maxC do
+			local cell = grid[r][c]
+			if cell and cell.hasCircle then
+				blocked[key(r, c)] = true
+			end
+		end
+	end
+	local solveOrder = table.clone(allPairs)
+	table.sort(solveOrder, function(a, b)
+		local distA = math.abs(a.c1.r - a.c2.r) + math.abs(a.c1.c - a.c2.c)
+		local distB = math.abs(b.c1.r - b.c2.r) + math.abs(b.c1.c - b.c2.c)
+		return distA < distB
+	end)
+	local finalPaths = {}
+	local startTime = tick()
+	local function solvePair(pairIdx)
+		if tick() - startTime > 1.2 then return false end
+		if pairIdx > #solveOrder then return true end
+		local pair = solveOrder[pairIdx]
+		local directShortPath = findCleanShortestPath(grid, maxR, maxC, pair.c1, pair.c2, blocked)
+		if directShortPath then
+			for k = 2, #directShortPath - 1 do
+				blocked[key(directShortPath[k].r, directShortPath[k].c)] = true
+			end
+			if hasReachablePathsForAll(grid, maxR, maxC, solveOrder, pairIdx + 1, blocked) then
+				finalPaths[pairIdx] = {pair = pair, path = directShortPath}
+				if solvePair(pairIdx + 1) then
+					return true
+				end
+				finalPaths[pairIdx] = nil
+			end
+			for k = 2, #directShortPath - 1 do
+				blocked[key(directShortPath[k].r, directShortPath[k].c)] = nil
+			end
+		end
+		local currentPath = {pair.c1}
+		local function dfsDetour(cr, cc)
+			if tick() - startTime > 1.2 then return false end
+			if cr == pair.c2.r and cc == pair.c2.c then
+				if hasReachablePathsForAll(grid, maxR, maxC, solveOrder, pairIdx + 1, blocked) then
+					finalPaths[pairIdx] = {pair = pair, path = table.clone(currentPath)}
+					if solvePair(pairIdx + 1) then
+						return true
+					end
+					finalPaths[pairIdx] = nil
+				end
+				return false
+			end
+			local moves = {}
+			for _, d in ipairs(DIRS) do
+				local nr, nc = cr + d.dr, cc + d.dc
+				local k = key(nr, nc)
+				if nr >= 1 and nr <= maxR and nc >= 1 and nc <= maxC then
+					local isDest = (nr == pair.c2.r and nc == pair.c2.c)
+					local nb = grid[nr][nc]
+					if isDest or (nb and nb.isWalkableTile and not blocked[k]) then
+						local selfTouch = 0
+						for _, adj in ipairs(DIRS) do
+							local ar, ac = nr + adj.dr, nc + adj.dc
+							if ar ~= cr or ac ~= cc then
+								for _, node in ipairs(currentPath) do
+									if node.r == ar and node.c == ac then
+										selfTouch = selfTouch + 1
+									end
+								end
+							end
+						end
+						if isDest or selfTouch == 0 then
+							local wallDist = math.min(nr - 1, maxR - nr) + math.min(nc - 1, maxC - nc)
+							local goalDist = math.abs(nr - pair.c2.r) + math.abs(nc - pair.c2.c)
+							table.insert(moves, {
+								r = nr,
+								c = nc,
+								isDest = isDest,
+								score = (isDest and -1000 or 0) + wallDist * 2 + goalDist
+							})
+						end
+					end
+				end
+			end
+			table.sort(moves, function(a, b) return a.score < b.score end)
+			for _, mv in ipairs(moves) do
+				local k = key(mv.r, mv.c)
+				if not mv.isDest then blocked[k] = true end
+				table.insert(currentPath, grid[mv.r][mv.c])
+				if dfsDetour(mv.r, mv.c) then
+					return true
+				end
+				table.remove(currentPath)
+				if not mv.isDest then blocked[k] = nil end
+			end
+			return false
+		end
+		return dfsDetour(pair.c1.r, pair.c1.c)
+	end
+	if solvePair(1) and #finalPaths == #solveOrder then
+		return finalPaths
+	end
+	return nil
+end
+local function dragAlongFramesSmooth(pathCells)
+	if not acquireMouse("Flow") then return false end
+	if not pathCells or #pathCells < 2 then
+		releaseMouse("Flow")
+		return false
+	end
+	local _, firstCell = next(pathCells)
+	local lastCell = pathCells[#pathCells]
+	if not firstCell or not firstCell.frame or not lastCell or not lastCell.frame then
+		releaseMouse("Flow")
+		return false
+	end
+	local startX, startY = getCenterPosition(firstCell.frame)
+	VirtualInputManager:SendMouseMoveEvent(startX, startY, game)
+	task.wait(0.03)
+	VirtualInputManager:SendMouseButtonEvent(startX, startY, 0, true, game, 1)
+	task.wait(0.04)
+	for idx = 2, #pathCells do
+		local prevX, prevY = getCenterPosition(pathCells[idx - 1].frame)
+		local nextX, nextY = getCenterPosition(pathCells[idx].frame)
+		local steps = 5
+		for i = 1, steps do
+			local alpha = i / steps
+			local curX = prevX + (nextX - prevX) * alpha
+			local curY = prevY + (nextY - prevY) * alpha
+			VirtualInputManager:SendMouseMoveEvent(curX, curY, game)
+			task.wait(0.0075)
+		end
+	end
+	local endX, endY = getCenterPosition(lastCell.frame)
+	VirtualInputManager:SendMouseMoveEvent(endX, endY, game)
+	task.wait(0.03)
+	VirtualInputManager:SendMouseButtonEvent(endX, endY, 0, false, game, 1)
+	task.wait(0.1)
+	local success = hasActiveHalfLine(firstCell.frame) and hasActiveHalfLine(lastCell.frame)
+	releaseMouse("Flow")
+	return success
+end
+local function clearPairLine(pair)
+	if not acquireMouse("Flow") then return end
+	local cx, cy = getCenterPosition(pair.c1.frame)
+	VirtualInputManager:SendMouseMoveEvent(cx, cy, game)
+	task.wait(0.02)
+	VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+	task.wait(0.03)
+	VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+	task.wait(0.04)
+	releaseMouse("Flow")
+end
+local function processBoardClean()
+	local isValidGen, genMsg = hasValidFlowServerGenerator()
+	if not isValidGen then
+		return
+	end
+	local puzzleUI = PlayerGui:FindFirstChild("PuzzleUI")
+	if not puzzleUI or not puzzleUI.Enabled then
+		cachedSolutions = {}
+		blockerClearCount = {}
+		return
+	end
+	local gridFolder = puzzleUI:FindFirstChild("Container")
+		and puzzleUI.Container:FindFirstChild("GridHolder")
+		and puzzleUI.Container.GridHolder:FindFirstChild("Grid")
+	if not gridFolder then
+		return
+	end
+	local grid, maxR, maxC, boardSig = buildGridMap(gridFolder)
+	if not grid or boardSig == "" then
+		return
+	end
+	local colorGroups = {}
+	for r = 1, maxR do
+		for c = 1, maxC do
+			local cell = grid[r][c]
+			if cell and cell.hasCircle and cell.colorKey then
+				if not colorGroups[cell.colorKey] then
+					colorGroups[cell.colorKey] = {}
+				end
+				table.insert(colorGroups[cell.colorKey], cell)
+			end
+		end
+	end
+	local allPairs = {}
+	local unfinishedPairs = {}
+	local connectedPairsByColor = {}
+	for colorKey, cells in pairs(colorGroups) do
+		local firstNode, secondNode = nil, nil
+		for _, node in ipairs(cells) do
+			if not firstNode then
+				firstNode = node
+			elseif not secondNode then
+				secondNode = node
+				break
+			end
+		end
+		if firstNode and secondNode then
+			local pObj = {colorKey = colorKey, c1 = firstNode, c2 = secondNode}
+			table.insert(allPairs, pObj)
+			if not firstNode.hasLine or not secondNode.hasLine then
+				table.insert(unfinishedPairs, pObj)
+			else
+				connectedPairsByColor[colorKey] = pObj
+			end
+		end
+	end
+	if #allPairs == 0 then
+		return
+	end
+	if #unfinishedPairs == 0 then
+		return
+	end
+	local solutionList = cachedSolutions[boardSig]
+	if solutionList == nil then
+		task.wait()
+		local solved = solveFullBoardClean(grid, maxR, maxC, allPairs)
+		cachedSolutions[boardSig] = solved or false
+		solutionList = cachedSolutions[boardSig]
+	end
+	if type(solutionList) == "table" then
+		for i = 1, #solutionList do
+			if not states.Flow then return end
+			local item = solutionList[i]
+			local latestGrid = buildGridMap(gridFolder)
+			if latestGrid then
+				local c1Latest = latestGrid[item.pair.c1.r][item.pair.c1.c]
+				local c2Latest = latestGrid[item.pair.c2.r][item.pair.c2.c]
+				if not c1Latest.hasLine or not c2Latest.hasLine then
+					local latestPath = {}
+					local blockingColors = {}
+					for k, pCell in ipairs(item.path) do
+						local cellNow = latestGrid[pCell.r][pCell.c]
+						if k > 1 and k < #item.path and cellNow.hasLine and cellNow.lineColorKey then
+							blockingColors[cellNow.lineColorKey] = true
+						end
+						table.insert(latestPath, cellNow)
+					end
+					local didClearBlocker = false
+					for bColor, _ in pairs(blockingColors) do
+						local bPair = connectedPairsByColor[bColor]
+						local clearKey = boardSig .. "_" .. bColor
+						local count = blockerClearCount[clearKey] or 0
+						if bPair and count < 2 then
+							blockerClearCount[clearKey] = count + 1
+							clearPairLine(bPair)
+							didClearBlocker = true
+						end
+					end
+					if didClearBlocker then
+						return
+					end
+					dragAlongFramesSmooth(latestPath)
+					return
+				end
+			end
+		end
+	end
+	local currentBlocked = {}
+	for r = 1, maxR do
+		for c = 1, maxC do
+			local cell = grid[r][c]
+			if cell and (cell.hasCircle or cell.hasLine) then
+				currentBlocked[r * 100 + c] = true
+			end
+		end
+	end
+	for _, pair in ipairs(unfinishedPairs) do
+		local shortPath = findCleanShortestPath(grid, maxR, maxC, pair.c1, pair.c2, currentBlocked)
+		if shortPath then
+			dragAlongFramesSmooth(shortPath)
+			return
+		end
+	end
+	for bColor, bPair in pairs(connectedPairsByColor) do
+		local clearKey = boardSig .. "fallback" .. bColor
+		if not blockerClearCount[clearKey] then
+			blockerClearCount[clearKey] = true
+			cachedSolutions[boardSig] = nil
+			clearPairLine(bPair)
+			return
+		end
+	end
+end
+local flowBusy = false
+task.spawn(function()
+	while ScreenGui.Parent do
+		if states.Flow and not flowBusy then
+			flowBusy = true
+			local ok, err = pcall(processBoardClean)
+			if not ok then
+				warn("[Smart Flow Solver]", err)
+			end
+			flowBusy = false
+			task.wait(0.08)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+local function getGuiCenter(obj)
+	local inset = GuiService:GetGuiInset()
+	local pos = obj.AbsolutePosition
+	local size = obj.AbsoluteSize
+	return pos.X + size.X * 0.5 + inset.X,
+		pos.Y + size.Y * 0.5 + inset.Y
+end
+local blobBusy = false
+local function dragBlob(startFrame, endFrame)
+	if not acquireMouse("Blob") then return false end
+	local savedMouse = UIS:GetMouseLocation()
+	local startX, startY = getGuiCenter(startFrame)
+	local endX, endY = getGuiCenter(endFrame)
+	VirtualInputManager:SendMouseMoveEvent(startX, startY, game)
+	task.wait()
+	VirtualInputManager:SendMouseButtonEvent(startX, startY, 0, true, game, 1)
+	task.wait()
+	for step = 1, 5 do
+		local alpha = step / 5
+		local x = startX + (endX - startX) * alpha
+		local y = startY + (endY - startY) * alpha
+		VirtualInputManager:SendMouseMoveEvent(x, y, game)
+		task.wait()
+	end
+	VirtualInputManager:SendMouseMoveEvent(endX, endY, game)
+	task.wait()
+	VirtualInputManager:SendMouseButtonEvent(endX, endY, 0, false, game, 1)
+	VirtualInputManager:SendMouseMoveEvent(savedMouse.X, savedMouse.Y, game)
+	releaseMouse("Blob")
+	return true
+end
+local function getCompletedBlobColors(gridFolder)
+	local completed = {}
+	local linesFolder = gridFolder:FindFirstChild("Lines")
+	if linesFolder then
+		for _, line in ipairs(linesFolder:GetDescendants()) do
+			if line:IsA("Frame") and line.Visible then
+				completed[getColorKey(line.BackgroundColor3)] = true
+			end
+		end
+	end
+	return completed
+end
+local function hasValidConnectServerGenerator()
+	local mapFolder = workspace:FindFirstChild("Map")
+	local ingameFolder = mapFolder and mapFolder:FindFirstChild("Ingame")
+	local innerMap = ingameFolder and ingameFolder:FindFirstChild("Map")
+	if not innerMap then return false end
+
+	local character = LocalPlayer.Character
+	local root = character and (character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart)
+	if not root then return false end
+
+	local closestGenerator = nil
+	local minDistance = math.huge
+
+	for _, obj in ipairs(innerMap:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			local distance = (root.Position - obj:GetPivot().Position).Magnitude
+
+			if distance < minDistance then
+				minDistance = distance
+				closestGenerator = obj
+			end
+		end
+	end
+
+	return closestGenerator ~= nil and minDistance <= 35 and closestGenerator:GetAttribute("Puzzle") == "ConnectServerMinigame"
+end
+local function processBlobs()
+	if blobBusy then return end
+	blobBusy = true
+	local ok, err = pcall(function()
+		local puzzleUI = PlayerGui:FindFirstChild("PuzzleUI")
+		if not puzzleUI or not puzzleUI.Enabled then return end
+		if not hasValidConnectServerGenerator() then return end
+		local container = puzzleUI:FindFirstChild("Container")
+		local holder = container and container:FindFirstChild("GridHolder")
+		local grid = holder and holder:FindFirstChild("Grid")
+		local blobs = grid and grid:FindFirstChild("Blobs")
+		if not blobs then return end
+		local completed = getCompletedBlobColors(grid)
+		local groups = {}
+		for _, child in ipairs(blobs:GetChildren()) do
+			if child:IsA("Frame") and child.Visible then
+				local color = getColorKey(child.BackgroundColor3)
+				if not completed[color] then
+					groups[color] = groups[color] or {}
+					table.insert(groups[color], child)
+				end
+			end
+		end
+		local validPairs = {}
+		for _, frames in pairs(groups) do
+			if #frames >= 2 then
+				table.insert(validPairs, {frames[1], frames[2]})
+			end
+		end
+		if #validPairs == 0 then return end
+		local pair = validPairs[math.random(1, #validPairs)]
+		if math.random(1, 2) == 2 then
+			pair[1], pair[2] = pair[2], pair[1]
+		end
+		dragBlob(pair[1], pair[2])
+	end)
+	if not ok then
+		warn("[Auto Connect Blobs]", err)
+	end
+	blobBusy = false
+end
+task.spawn(function()
+	while ScreenGui.Parent do
+		if states.Blob then
+			processBlobs()
+			task.wait(0.05)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+local gearHolding = false
+local gearX, gearY = 0, 0
+local gearAngle = 0
+local function releaseGearMouse()
+	if gearHolding then
+		VirtualInputManager:SendMouseButtonEvent(gearX, gearY, 0, false, game, 1)
+		gearHolding = false
+	end
+	releaseMouse("Gear")
+end
+local function hasValidGearServerGenerator()
+	local mapFolder = workspace:FindFirstChild("Map")
+	local ingameFolder = mapFolder and mapFolder:FindFirstChild("Ingame")
+	local innerMap = ingameFolder and ingameFolder:FindFirstChild("Map")
+	if not innerMap then return false end
+
+	local character = LocalPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+
+	local closestGenerator = nil
+	local minDistance = math.huge
+
+	for _, obj in ipairs(innerMap:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			local distance = (root.Position - obj:GetPivot().Position).Magnitude
+
+			if distance < minDistance then
+				minDistance = distance
+				closestGenerator = obj
+			end
+		end
+	end
+
+	return closestGenerator ~= nil
+		and minDistance <= 35
+		and closestGenerator:GetAttribute("Puzzle") == "GearServerMinigame"
+end
+
+local function findFlyingGear()
+	local puzzleUI = PlayerGui:FindFirstChild("PuzzleUI")
+	if not puzzleUI or not puzzleUI.Enabled then return nil end
+
+	if not hasValidGearServerGenerator() then return nil end
+
+	local container = puzzleUI:FindFirstChild("Container")
+	local overlay = container and container:FindFirstChild("Overlay")
+	if not overlay or not overlay.Visible then return nil end
+
+	local gear = overlay:FindFirstChild("FlyingGear")
+	if gear and gear:IsA("GuiObject") and gear.Visible then
+		return gear, puzzleUI
+	end
+
+	return nil
+end
+local function rotateFlyingGear()
+	local gear, puzzleUI = findFlyingGear()
+	if not gear then
+		releaseGearMouse()
+		return
+	end
+	if not acquireMouse("Gear") then return end
+	local pos = gear.AbsolutePosition
+	local size = gear.AbsoluteSize
+	local cx = pos.X + size.X * 0.5
+	local cy = pos.Y + size.Y * 0.5
+	if not puzzleUI.IgnoreGuiInset then
+		local inset = GuiService:GetGuiInset()
+		cx += inset.X
+		cy += inset.Y
+	end
+	local radius = math.max(math.min(size.X, size.Y) * 0.35, 25)
+	if not gearHolding then
+		gearX = cx + math.cos(gearAngle) * radius
+		gearY = cy + math.sin(gearAngle) * radius
+		VirtualInputManager:SendMouseMoveEvent(gearX, gearY, game)
+		task.wait()
+		if not states.Gear then
+			releaseGearMouse()
+			return
+		end
+		VirtualInputManager:SendMouseButtonEvent(gearX, gearY, 0, true, game, 1)
+		gearHolding = true
+	end
+	for _ = 1, 3 do
+		gearAngle = (gearAngle + 0.28) % (math.pi * 2)
+		gearX = cx + math.cos(gearAngle) * radius
+		gearY = cy + math.sin(gearAngle) * radius
+		VirtualInputManager:SendMouseMoveEvent(gearX, gearY, game)
+	end
+end
+task.spawn(function()
+	while ScreenGui.Parent do
+		if states.Gear then
+			local ok, err = pcall(rotateFlyingGear)
+			if not ok then
+				warn("[Auto Rotate FlyingGear]", err)
+				releaseGearMouse()
+			end
+			task.wait()
+		else
+			releaseGearMouse()
+			task.wait(0.1)
+		end
+	end
+end)
+local function hasValidLockServerGenerator()
+	local mapFolder = workspace:FindFirstChild("Map")
+	local ingameFolder = mapFolder and mapFolder:FindFirstChild("Ingame")
+	local innerMap = ingameFolder and ingameFolder:FindFirstChild("Map")
+	if not innerMap then return false end
+	for _, obj in ipairs(innerMap:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			if tostring(obj:GetAttribute("Puzzle")) == "LockServerMinigame" then
+				return true
+			end
+			local puzzleValue = obj:FindFirstChild("Puzzle", true)
+			if puzzleValue and puzzleValue:IsA("ValueBase")
+				and tostring(puzzleValue.Value) == "LockServerMinigame" then
+				return true
+			end
+		end
+	end
+	return false
+end
+local function isTargetCircleColor(color)
+	if not color then return false end
+	return math.abs(math.round(color.R * 255) - 240) <= 3
+		and math.abs(math.round(color.G * 255) - 240) <= 3
+		and math.abs(math.round(color.B * 255) - 240) <= 3
+end
+local function getPathColor(path)
+	local ok, color = pcall(function()
+		return path.Color3 or path.Color
+	end)
+	if not ok then return nil end
+	if typeof(color) == "Color3" then return color end
+	if typeof(color) == "ColorSequence" and #color.Keypoints > 0 then
+		return color.Keypoints[1].Value
+	end
+	return nil
+end
+local function evaluateBezier(p0, p1, p2, p3, t)
+	local u = 1 - t
+	return p0 * u^3 + p1 * (3 * u^2 * t) + p2 * (3 * u * t^2) + p3 * t^3
+end
+local function getNormalizedCurvePoints(path, circle)
+	local size = circle.AbsoluteSize
+	if size.X <= 0 or size.Y <= 0 then return {} end
+	local points = {}
+	local ok = pcall(function()
+		path:GetPositionOnCurve(0.5)
+	end)
+	if ok then
+		for index = 1, 19 do
+			local point = path:GetPositionOnCurve(index / 20)
+			table.insert(points, Vector2.new(
+				point.X.Scale + point.X.Offset / size.X,
+				point.Y.Scale + point.Y.Offset / size.Y
+				))
+		end
+		return points
+	end
+	local success, controls = pcall(function()
+		return path:GetControlPoints()
+	end)
+	if not success or type(controls) ~= "table" or #controls < 2 then
+		return points
+	end
+	local function normalize(position)
+		return Vector2.new(
+			position.X.Scale + position.X.Offset / size.X,
+			position.Y.Scale + position.Y.Offset / size.Y
+		)
+	end
+	for index = 1, #controls - 1 do
+		local first = controls[index]
+		local second = controls[index + 1]
+		local p0 = normalize(first.Position)
+		local p3 = normalize(second.Position)
+		local p1 = normalize(first.Position + first.RightTangent)
+		local p2 = normalize(second.Position + second.LeftTangent)
+		for step = 0, 10 do
+			table.insert(points, evaluateBezier(p0, p1, p2, p3, step / 10))
+		end
+	end
+	return points
+end
+local function isTipInsideTargetPath(tip, path, circle)
+	local circlePos = circle.AbsolutePosition
+	local circleSize = circle.AbsoluteSize
+	if circleSize.X <= 0 or circleSize.Y <= 0 then return false end
+	local points = getNormalizedCurvePoints(path, circle)
+	if #points == 0 then return false end
+	local tipCenter = tip.AbsolutePosition + tip.AbsoluteSize * 0.5
+	local tipNorm = Vector2.new(
+		(tipCenter.X - circlePos.X) / circleSize.X,
+		(tipCenter.Y - circlePos.Y) / circleSize.Y
+	)
+	local center = Vector2.new(0.5, 0.5)
+	local tipAngle = math.atan2(tipNorm.Y - center.Y, tipNorm.X - center.X)
+	local tipRadius = math.max(
+		tip.AbsoluteSize.X / circleSize.X,
+		tip.AbsoluteSize.Y / circleSize.Y
+	) * 0.5
+	local angleTolerance = math.clamp(tipRadius * 1.1, 0.04, 0.12)
+	local distanceTolerance = math.clamp(tipRadius * 1.2, 0.025, 0.08)
+	for _, point in ipairs(points) do
+		if (tipNorm - point).Magnitude <= distanceTolerance then
+			return true
+		end
+		local pointAngle = math.atan2(point.Y - center.Y, point.X - center.X)
+		local angleDiff = math.abs(math.atan2(
+			math.sin(tipAngle - pointAngle),
+			math.cos(tipAngle - pointAngle)
+			))
+		if angleDiff <= angleTolerance then
+			return true
+		end
+	end
+	return false
+end
+local lastCircleClick = 0
+local function processCircleTiming()
+	if os.clock() - circleEnableTime < 0.4 then return end
+	if os.clock() - lastCircleClick < 0.3 then return end
+	if not hasValidLockServerGenerator() then return end
+	local puzzleUI = PlayerGui:FindFirstChild("PuzzleUI")
+	if not puzzleUI or not puzzleUI.Enabled then return end
+	local container = puzzleUI:FindFirstChild("Container")
+	local holder = container and container:FindFirstChild("GridHolder")
+	local grid = holder and holder:FindFirstChild("Grid")
+	local circle = grid and grid:FindFirstChild("Circle")
+	if not circle or not circle.Visible then return end
+	local line = circle:FindFirstChild("Line")
+	local tip = line and line:FindFirstChild("Tip")
+	if not tip or not tip.Visible then return end
+	local targetPath
+	for _, child in ipairs(circle:GetDescendants()) do
+		if child:IsA("Path2D") and isTargetCircleColor(getPathColor(child)) then
+			targetPath = child
+			break
+		end
+	end
+	if targetPath and isTipInsideTargetPath(tip, targetPath, circle) then
+		if not acquireMouse("Circle") then return end
+		lastCircleClick = os.clock()
+		local camera = workspace.CurrentCamera
+		if camera then
+			local viewport = camera.ViewportSize
+			local x, y = viewport.X * 0.5, viewport.Y * 0.5
+			VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 1)
+			task.wait()
+			VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 1)
+		end
+		releaseMouse("Circle")
+	end
+end
+task.spawn(function()
+	while ScreenGui.Parent do
+		if states.Circle then
+			local ok, err = pcall(processCircleTiming)
+			if not ok then
+				warn("[Auto Circle Timing]", err)
+			end
+			task.wait(0.03)
+		else
+			task.wait(0.1)
+		end
+	end
+end)
+
+local function setAutoGeneratorFeatures(enabled)
+	states.Flow = enabled
+	states.Blob = enabled
+	states.Gear = enabled
+	states.Circle = enabled
+	if enabled then
+		cachedSolutions = {}
+		blockerClearCount = {}
+		circleEnableTime = os.clock()
+	else
+		releaseGearMouse()
+		if mouseOwner == "Flow" or mouseOwner == "Blob" or mouseOwner == "Circle" then
+			mouseOwner = nil
+		end
+	end
+end
+
+AutoGenBtn.MouseButton1Click:Connect(function()
+	AUTO_GEN = not AUTO_GEN
+	setAutoGeneratorFeatures(AUTO_GEN)
+	if AUTO_GEN then
+		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): ON"
+		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
+	else
+		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
+		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
+	end
+end)
 
 SpeedBtn.MouseButton1Click:Connect(function()
 	SPEED_ENABLED = not SPEED_ENABLED
@@ -998,73 +1933,73 @@ SpeedBtn.MouseButton1Click:Connect(function()
 end)
 
 SpeedInput.FocusLost:Connect(function()
-    local text = SpeedInput.Text:gsub("%s+", ""):lower():gsub("x$", "")
-    local value = tonumber(text)
-    
-    if value and value >= 1 and value <= 1.35 then
-        SPEED_MULTIPLIER = value
-        SpeedInput.Text = tostring(value) .. "x"
-    else
-        SPEED_MULTIPLIER = 1.15
-        SpeedInput.Text = "1.15x"
-    end
+	local text = SpeedInput.Text:gsub("%s+", ""):lower():gsub("x$", "")
+	local value = tonumber(text)
+
+	if value and value >= 1 and value <= 1.35 then
+		SPEED_MULTIPLIER = value
+		SpeedInput.Text = tostring(value) .. "x"
+	else
+		SPEED_MULTIPLIER = 1.15
+		SpeedInput.Text = "1.15x"
+	end
 end)
 
 StaminaBtn.MouseButton1Click:Connect(function()
-    STAMINA_ENABLED = not STAMINA_ENABLED
-    if STAMINA_ENABLED then
-        StaminaBtn.Text = "Infinite Stamina: ON"
-        StaminaBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
-    else
-        StaminaBtn.Text = "Infinite Stamina: OFF"
-        StaminaBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        pcall(function()
-            if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 1 end
-            if SprintModule.DrainRate then SprintModule.DrainRate = 1 end
-        end)
-    end
+	STAMINA_ENABLED = not STAMINA_ENABLED
+	if STAMINA_ENABLED then
+		StaminaBtn.Text = "Infinite Stamina: ON"
+		StaminaBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+	else
+		StaminaBtn.Text = "Infinite Stamina: OFF"
+		StaminaBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+		pcall(function()
+			if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 1 end
+			if SprintModule.DrainRate then SprintModule.DrainRate = 1 end
+		end)
+	end
 end)
 
 AntiStunBtn.MouseButton1Click:Connect(function()
-    ANTISTUN_ENABLED = not ANTISTUN_ENABLED
-    if ANTISTUN_ENABLED then
-        AntiStunBtn.Text = "ANTI STUN: ON"
-        AntiStunBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    else
-        AntiStunBtn.Text = "ANTI STUN: OFF"
-        AntiStunBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-    end
+	ANTISTUN_ENABLED = not ANTISTUN_ENABLED
+	if ANTISTUN_ENABLED then
+		AntiStunBtn.Text = "ANTI STUN: ON"
+		AntiStunBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		AntiStunBtn.Text = "ANTI STUN: OFF"
+		AntiStunBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
 end)
 
 UseJumpBtn.MouseButton1Click:Connect(function()
-    USEJUMP_ENABLED = not USEJUMP_ENABLED
+	USEJUMP_ENABLED = not USEJUMP_ENABLED
 
-    local Character = LocalPlayer.Character
-    local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
-    
-    if USEJUMP_ENABLED then
-        UseJumpBtn.Text = "USE JUMP: ON"
-        UseJumpBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    else
-        UseJumpBtn.Text = "USE JUMP: OFF"
-        UseJumpBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	local Character = LocalPlayer.Character
+	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 
-        ResetToGameDefault(Humanoid)
-    end
+	if USEJUMP_ENABLED then
+		UseJumpBtn.Text = "USE JUMP: ON"
+		UseJumpBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		UseJumpBtn.Text = "USE JUMP: OFF"
+		UseJumpBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+
+		ResetToGameDefault(Humanoid)
+	end
 end)
 
 GearBtn.MouseButton1Click:Connect(function()
 	GEAR_ESP = not GEAR_ESP
 
-    if GEAR_ESP then
-        applyGearESP()
-        GearBtn.Text = "GEAR ESP: ON"
-        GearBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    else
-        removeGearESP()
-        GearBtn.Text = "GEAR ESP: OFF"
-        GearBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-    end
+	if GEAR_ESP then
+		applyGearESP()
+		GearBtn.Text = "GEAR ESP: ON"
+		GearBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		removeGearESP()
+		GearBtn.Text = "GEAR ESP: OFF"
+		GearBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
 end)
 
 MinimizeBtn.MouseButton1Click:Connect(function()
@@ -1088,10 +2023,11 @@ CloseBtn.MouseButton1Click:Connect(function()
 	GEN_ESP = false
 	ITEM_ESP = false
 	AUTO_GEN = false
+	setAutoGeneratorFeatures(false)
 	SPEED_ENABLED = false
-    STAMINA_ENABLED = false
-    ANTISTUN_ENABLED = false
-    USEJUMP_ENABLED = false
+	STAMINA_ENABLED = false
+	ANTISTUN_ENABLED = false
+	USEJUMP_ENABLED = false
 	GEAR_ESP = false
 
 	if PLAYER_CONNECTION then
@@ -1142,10 +2078,11 @@ ScreenGui.Destroying:Connect(function()
 	GEN_ESP = false
 	ITEM_ESP = false
 	AUTO_GEN = false
+	setAutoGeneratorFeatures(false)
 	SPEED_ENABLED = false
-    STAMINA_ENABLED = false
-    ANTISTUN_ENABLED = false
-    USEJUMP_ENABLED = false
+	STAMINA_ENABLED = false
+	ANTISTUN_ENABLED = false
+	USEJUMP_ENABLED = false
 	GEAR_ESP = false
 
 	if PLAYER_CONNECTION then
@@ -1190,107 +2127,107 @@ ScreenGui.Destroying:Connect(function()
 end)
 
 task.spawn(function()
-    while true do
-        task.wait(0.05)
-        
-        if STAMINA_ENABLED and SprintModule then
-            pcall(function()
-                if SprintModule.Stamina then SprintModule.Stamina = 100 end
-                if SprintModule.CurrentStamina then SprintModule.CurrentStamina = 100 end
-                if SprintModule.MaxStamina then SprintModule.MaxStamina = 100 end
-                if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 0 end
-                if SprintModule.DrainRate then SprintModule.DrainRate = 0 end
-            end)
-        end
-        
-        if ANTISTUN_ENABLED then
-            if StatusModule then
-                pcall(function()
-                    if StatusModule.IsStunned ~= nil then StatusModule.IsStunned = false end
-                    if StatusModule.Stunned ~= nil then StatusModule.Stunned = false end
-                    if StatusModule.StunDuration then StatusModule.StunDuration = 0 end
-                end)
-            end
-            
-            local character = LocalPlayer.Character
-            if character then
-                pcall(function()
-                    local humanoid = character:FindFirstChildOfClass("Humanoid")
-                    if humanoid and humanoid.PlatformStand == true then
-                        humanoid.PlatformStand = false
-                    end
-                    for _, object in pairs(character:GetChildren()) do
-                        local name = object.Name:lower()
-                        if name:find("stun") or name:find("daze") or name:find("paralyze") or name:find("blind") then
-                            object:Destroy()
-                        end
-                    end
-                    if character.GetAttributes then
-                        for attrName, _ in pairs(character:GetAttributes()) do
-                            local name = attrName:lower()
-                            if name:find("stun") or name:find("isstunned") then
-                                character:SetAttribute(attrName, false)
-                            end
-                        end
-                    end
-                end)
-            end
-        end
-    end
+	while true do
+		task.wait(0.05)
+
+		if STAMINA_ENABLED and SprintModule then
+			pcall(function()
+				if SprintModule.Stamina then SprintModule.Stamina = 100 end
+				if SprintModule.CurrentStamina then SprintModule.CurrentStamina = 100 end
+				if SprintModule.MaxStamina then SprintModule.MaxStamina = 100 end
+				if SprintModule.StaminaLoss then SprintModule.StaminaLoss = 0 end
+				if SprintModule.DrainRate then SprintModule.DrainRate = 0 end
+			end)
+		end
+
+		if ANTISTUN_ENABLED then
+			if StatusModule then
+				pcall(function()
+					if StatusModule.IsStunned ~= nil then StatusModule.IsStunned = false end
+					if StatusModule.Stunned ~= nil then StatusModule.Stunned = false end
+					if StatusModule.StunDuration then StatusModule.StunDuration = 0 end
+				end)
+			end
+
+			local character = LocalPlayer.Character
+			if character then
+				pcall(function()
+					local humanoid = character:FindFirstChildOfClass("Humanoid")
+					if humanoid and humanoid.PlatformStand == true then
+						humanoid.PlatformStand = false
+					end
+					for _, object in pairs(character:GetChildren()) do
+						local name = object.Name:lower()
+						if name:find("stun") or name:find("daze") or name:find("paralyze") or name:find("blind") then
+							object:Destroy()
+						end
+					end
+					if character.GetAttributes then
+						for attrName, _ in pairs(character:GetAttributes()) do
+							local name = attrName:lower()
+							if name:find("stun") or name:find("isstunned") then
+								character:SetAttribute(attrName, false)
+							end
+						end
+					end
+				end)
+			end
+		end
+	end
 end)
 
 local function forceEnableJump(Humanoid)
-    if not Humanoid then return end
-    
-    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-    
-    local currentState = Humanoid:GetState()
-    if currentState == Enum.HumanoidStateType.None or currentState == Enum.HumanoidStateType.FallingDown then
-        Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
-	
-    if Humanoid.UseJumpPower then
-        if Humanoid.JumpPower ~= 50 then
-            Humanoid.JumpPower = 50
-        end
-    else
-        if Humanoid.JumpHeight ~= 7.2 then 
-            Humanoid.JumpHeight = 7.2
-        end
-    end
+	if not Humanoid then return end
+
+	Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+
+	local currentState = Humanoid:GetState()
+	if currentState == Enum.HumanoidStateType.None or currentState == Enum.HumanoidStateType.FallingDown then
+		Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+
+	if Humanoid.UseJumpPower then
+		if Humanoid.JumpPower ~= 50 then
+			Humanoid.JumpPower = 50
+		end
+	else
+		if Humanoid.JumpHeight ~= 7.2 then
+			Humanoid.JumpHeight = 7.2
+		end
+	end
 end
 
 RunService.Heartbeat:Connect(function()
-    local Character = LocalPlayer.Character
-    if not Character then return end
-    
-    local Humanoid = Character:FindFirstChildOfClass("Humanoid")
-    if not Humanoid or Humanoid.Health <= 0 then return end
+	local Character = LocalPlayer.Character
+	if not Character then return end
 
-    if USEJUMP_ENABLED then
-        forceEnableJump(Humanoid)
-        
-        Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-    else
-        if (Humanoid.UseJumpPower and Humanoid.JumpPower == 50) or (not Humanoid.UseJumpPower and Humanoid.JumpHeight == 7.2) then
-            ResetToGameDefault(Humanoid)
-        end
-    end
+	local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+	if not Humanoid or Humanoid.Health <= 0 then return end
+
+	if USEJUMP_ENABLED then
+		forceEnableJump(Humanoid)
+
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
+	else
+		if (Humanoid.UseJumpPower and Humanoid.JumpPower == 50) or (not Humanoid.UseJumpPower and Humanoid.JumpHeight == 7.2) then
+			ResetToGameDefault(Humanoid)
+		end
+	end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(NewCharacter)
-    local Humanoid = NewCharacter:WaitForChild("Humanoid", 10)
-    if not Humanoid then return end
-    
-    task.defer(function()
-        if not Humanoid:IsDescendantOf(workspace) then return end
-        
-        if USEJUMP_ENABLED then
-            forceEnableJump(Humanoid)
-        else
-            ResetToGameDefault(Humanoid)
-        end
-    end)
+	local Humanoid = NewCharacter:WaitForChild("Humanoid", 10)
+	if not Humanoid then return end
+
+	task.defer(function()
+		if not Humanoid:IsDescendantOf(workspace) then return end
+
+		if USEJUMP_ENABLED then
+			forceEnableJump(Humanoid)
+		else
+			ResetToGameDefault(Humanoid)
+		end
+	end)
 end)
 
 Players.PlayerAdded:Connect(function(player)
