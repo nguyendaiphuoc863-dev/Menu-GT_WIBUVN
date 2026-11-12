@@ -213,7 +213,7 @@ FullbrightBtn.TextColor3 = Color3.new(1,1,1)
 local AutoGenBtn = Instance.new("TextButton", MainPage)
 AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 36)
 AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
-AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
 AutoGenBtn.TextScaled = true
 AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 AutoGenBtn.TextColor3 = Color3.new(1,1,1)
@@ -271,7 +271,7 @@ PlayerBtn.TextColor3 = Color3.new(1,1,1)
 local GenBtn = Instance.new("TextButton", ESPPage)
 GenBtn.Size = UDim2.new(0.9, 0, 0, 30)
 GenBtn.Position = UDim2.new(0.05, 0, 0.30, 0)
-GenBtn.Text = "GEN ESP: OFF"
+GenBtn.Text = "GENERATOR ESP: OFF"
 GenBtn.TextScaled = true
 GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 GenBtn.TextColor3 = Color3.new(1,1,1)
@@ -928,11 +928,11 @@ GenBtn.MouseButton1Click:Connect(function()
 	GEN_ESP = not GEN_ESP
 
 	if GEN_ESP then
-		GenBtn.Text = "GEN ESP: ON"
+		GenBtn.Text = "GENERATOR ESP: ON"
 		GenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
 		applyGenESP()
 	else
-		GenBtn.Text = "GEN ESP: OFF"
+		GenBtn.Text = "GENERATOR ESP: OFF"
 		GenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 		removeGenESP()
 	end
@@ -1968,10 +1968,10 @@ AutoGenBtn.Activated:Connect(function()
 	AUTO_GEN = not AUTO_GEN
 	setAutoGeneratorFeatures(AUTO_GEN)
 	if AUTO_GEN then
-		AutoGenBtn.Text = "AUTO FIX GEN: ON"
+		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): ON"
 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(0,170,0)
 	else
-		AutoGenBtn.Text = "AUTO FIX GEN: OFF"
+		AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
 		AutoGenBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 	end
 end)
