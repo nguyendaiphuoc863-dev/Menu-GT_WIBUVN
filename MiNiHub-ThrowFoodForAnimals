@@ -1,0 +1,1751 @@
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local IsPC = UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled
+local ToggleKey = Enum.KeyCode.RightControl
+
+local GUI_NAME = "MiniHubGame"
+local LastY = nil
+local PreviousMarkerTop = nil
+local WasAboveTop = false
+local AutoEnabled = false
+local AutoTrainingEnabled = false
+local AwaitingKeybind = false
+local AntiAFKEnabled = false
+local ThemeIndex = 0
+local AutoTrainingToken = 0
+local LastClickTime = 0
+local AutoThrowToken = 0
+local Minimized = false
+local IsAnimating = false
+local IsClosing = false
+local AutoThrowEnabled = false
+local NormalSize = IsMobile and UDim2.fromOffset(370, 400) or UDim2.fromOffset(560, 370)
+local MinimizedSize = IsMobile and UDim2.fromOffset(370, 55) or UDim2.fromOffset(560, 55)
+local ScreenPadding = IsMobile and 12 or 20
+local Purple = Color3.fromRGB(155, 90, 255)
+local Pink = Color3.fromRGB(255, 90, 190)
+local Blue = Color3.fromRGB(80, 150, 255)
+local Dark = Color3.fromRGB(17, 17, 27)
+local Panel = Color3.fromRGB(24, 23, 36)
+local FastTween = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local SmoothTween = TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+
+local ThemeColors = {
+	{Name = "Default", Color = Purple},
+	{Name = "Crimson", Color = Color3.fromRGB(145, 35, 55)},
+	{Name = "Amethyst", Color = Color3.fromRGB(100, 55, 155)},
+	{Name = "Emerald", Color = Color3.fromRGB(35, 115, 85)},
+	{Name = "Rose", Color = Color3.fromRGB(175, 75, 115)},
+	{Name = "Lavender", Color = Color3.fromRGB(125, 105, 175)}
+}
+
+local function RemoveOldGui()
+	for _, container in ipairs({CoreGui, PlayerGui}) do
+		pcall(function()
+			for _, gui in ipairs(container:GetChildren()) do
+				if gui:IsA("ScreenGui") and gui.Name == GUI_NAME then
+					gui:Destroy()
+				end
+			end
+		end)
+	end
+end
+RemoveOldGui()
+
+local function Tween(Object, Info, Properties)
+	local Animation = TweenService:Create(Object, Info, Properties)
+	Animation:Play()
+	return Animation
+end
+
+local function Corner(Object, Radius)
+	local UI = Instance.new("UICorner")
+	UI.CornerRadius = UDim.new(0, Radius)
+	UI.Parent = Object
+	return UI
+end
+
+local function Stroke(Object, Color, Thickness)
+	local UI = Instance.new("UIStroke")
+	UI.Color = Color
+	UI.Thickness = Thickness
+	UI.Parent = Object
+	return UI
+end
+
+local function Gradient(Object, Colors, Rotation)
+	local UI = Instance.new("UIGradient")
+	if #Colors == 1 then
+		UI.Color = ColorSequence.new(Colors[1])
+	else
+		local Keypoints = {}
+		for Index, Color in ipairs(Colors) do
+			table.insert(Keypoints, ColorSequenceKeypoint.new((Index - 1) / (#Colors - 1), Color))
+		end
+		UI.Color = ColorSequence.new(Keypoints)
+	end
+	UI.Rotation = Rotation or 0
+	UI.Parent = Object
+	return UI
+end
+
+local function Notify(Description)
+	task.spawn(function()
+		pcall(function()
+			StarterGui:SetCore("SendNotification", {
+				Title = "🎮 MINI HUB",
+				Text = Description,
+				Duration = 3
+			})
+		end)
+	end)
+end
+
+local function IsTrainingSequenceEnabled()
+	local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+	return TrainingSequence ~= nil and TrainingSequence:IsA("ScreenGui") and TrainingSequence.Enabled
+end
+
+for _, Gui in ipairs(CoreGui:GetChildren()) do
+	if Gui.Name == "CoreGuiLoading" then
+		Gui:Destroy()
+	end
+end
+
+local CoreGuiLoading = Instance.new("ScreenGui")
+CoreGuiLoading.Name = "CoreGuiLoading"
+CoreGuiLoading.IgnoreGuiInset = true
+CoreGuiLoading.ResetOnSpawn = false
+CoreGuiLoading.DisplayOrder = 999999
+CoreGuiLoading.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+CoreGuiLoading.Parent = CoreGui
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local Success = pcall(function()
+	ScreenGui.Parent = CoreGui
+end)
+if not Success or not ScreenGui.Parent then
+	ScreenGui.Parent = PlayerGui
+end
+
+local LoadingFrame = Instance.new("CanvasGroup")
+LoadingFrame.Name = "LoadingFrame"
+LoadingFrame.Size = UDim2.fromScale(1, 1)
+LoadingFrame.BackgroundColor3 = Color3.fromRGB(15, 10, 25)
+LoadingFrame.BackgroundTransparency = 0
+LoadingFrame.GroupTransparency = 0
+LoadingFrame.ZIndex = 20
+LoadingFrame.Parent = CoreGuiLoading
+
+local LoadingPanel = Instance.new("Frame")
+LoadingPanel.Size = UDim2.fromOffset(320, 145)
+LoadingPanel.Position = UDim2.new(0.5, -160, 0.5, -72)
+LoadingPanel.BackgroundColor3 = Purple:Lerp(Color3.fromRGB(12, 12, 20), 0.48)
+LoadingPanel.BorderSizePixel = 0
+LoadingPanel.ZIndex = 21
+LoadingPanel.Parent = LoadingFrame
+Corner(LoadingPanel, 12)
+Stroke(LoadingPanel, Purple, 1.5)
+
+local LoadingTitle = Instance.new("TextLabel")
+LoadingTitle.Size = UDim2.new(1, -30, 0, 30)
+LoadingTitle.Position = UDim2.fromOffset(15, 18)
+LoadingTitle.BackgroundTransparency = 1
+LoadingTitle.Text = "🎮  MINI HUB"
+LoadingTitle.TextColor3 = Color3.fromRGB(240, 225, 255)
+LoadingTitle.Font = Enum.Font.GothamBold
+LoadingTitle.TextSize = 20
+LoadingTitle.ZIndex = 22
+LoadingTitle.Parent = LoadingPanel
+
+local LoadingStatus = Instance.new("TextLabel")
+LoadingStatus.Size = UDim2.new(1, -30, 0, 20)
+LoadingStatus.Position = UDim2.fromOffset(15, 53)
+LoadingStatus.BackgroundTransparency = 1
+LoadingStatus.Text = "Initializing..."
+LoadingStatus.TextColor3 = Color3.fromRGB(165, 150, 190)
+LoadingStatus.Font = Enum.Font.Gotham
+LoadingStatus.TextSize = 11
+LoadingStatus.ZIndex = 22
+LoadingStatus.Parent = LoadingPanel
+
+local LoadingBar = Instance.new("Frame")
+LoadingBar.Size = UDim2.new(1, -40, 0, 7)
+LoadingBar.Position = UDim2.fromOffset(20, 91)
+LoadingBar.BackgroundColor3 = Color3.fromRGB(45, 38, 60)
+LoadingBar.BorderSizePixel = 0
+LoadingBar.ZIndex = 22
+LoadingBar.Parent = LoadingPanel
+Corner(LoadingBar, 5)
+
+local LoadingFill = Instance.new("Frame")
+LoadingFill.Size = UDim2.new(0, 0, 1, 0)
+LoadingFill.BackgroundColor3 = Purple
+LoadingFill.BorderSizePixel = 0
+LoadingFill.ZIndex = 23
+LoadingFill.Parent = LoadingBar
+Corner(LoadingFill, 5)
+Gradient(LoadingFill, {Purple, Pink, Blue}, 0)
+
+local LoadingPercent = Instance.new("TextLabel")
+LoadingPercent.Size = UDim2.new(1, -40, 0, 20)
+LoadingPercent.Position = UDim2.fromOffset(20, 105)
+LoadingPercent.BackgroundTransparency = 1
+LoadingPercent.Text = "0%"
+LoadingPercent.TextColor3 = Color3.fromRGB(220, 200, 255)
+LoadingPercent.Font = Enum.Font.GothamBold
+LoadingPercent.TextSize = 11
+LoadingPercent.TextXAlignment = Enum.TextXAlignment.Right
+LoadingPercent.ZIndex = 22
+LoadingPercent.Parent = LoadingPanel
+
+local MainFrame = Instance.new("CanvasGroup")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = NormalSize
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.fromScale(0.5, 0.5)
+MainFrame.BackgroundColor3 = Dark
+MainFrame.BackgroundTransparency = 0
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Visible = false
+MainFrame.GroupTransparency = 1
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+Corner(MainFrame, 13)
+
+local MainStroke = Stroke(MainFrame, Purple, 2)
+local BorderGradient = Gradient(MainStroke, {
+	Color3.fromRGB(170, 80, 255),
+	Color3.fromRGB(255, 80, 190),
+	Color3.fromRGB(70, 160, 255),
+	Color3.fromRGB(170, 80, 255)
+}, 0)
+
+local MainScale = Instance.new("UIScale")
+MainScale.Scale = 0.82
+MainScale.Parent = MainFrame
+
+local function UpdateResponsiveSize()
+	local Camera = workspace.CurrentCamera
+	if not Camera then return end
+
+	local Viewport = Camera.ViewportSize
+	local AvailableWidth = math.max(200, Viewport.X - ScreenPadding * 2)
+	local AvailableHeight = math.max(150, Viewport.Y - ScreenPadding * 2)
+
+	local TargetSize = NormalSize
+	local ScaleX = AvailableWidth / NormalSize.X.Offset
+	local ScaleY = AvailableHeight / NormalSize.Y.Offset
+	local ResponsiveScale = math.min(ScaleX, ScaleY, 1)
+
+	MainScale.Scale = ResponsiveScale
+
+	if Minimized then
+		MainFrame.Size = MinimizedSize
+	else
+		MainFrame.Size = NormalSize
+	end
+end
+
+UpdateResponsiveSize()
+
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateResponsiveSize)
+end
+
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 55)
+Header.Position = UDim2.fromOffset(0, 0)
+Header.BackgroundColor3 = Color3.fromRGB(35, 25, 52)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+Gradient(Header, {
+	Color3.fromRGB(45, 28, 68),
+	Color3.fromRGB(32, 25, 55),
+	Color3.fromRGB(25, 35, 65)
+}, 0)
+
+local HeaderLine = Instance.new("Frame")
+HeaderLine.Size = UDim2.new(1, 0, 0, 2)
+HeaderLine.Position = UDim2.new(0, 0, 1, -2)
+HeaderLine.BorderSizePixel = 0
+HeaderLine.BackgroundColor3 = Purple
+HeaderLine.Parent = Header
+Gradient(HeaderLine, {Purple, Pink, Blue, Purple}, 0)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -145, 1, 0)
+Title.Position = UDim2.fromOffset(18, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "🎮 MINI HUB"
+Title.TextColor3 = Color3.fromRGB(240, 225, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Size = UDim2.new(0, 150, 0, 18)
+Subtitle.Position = UDim2.fromOffset(145, 19)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "THROW FOOD FOR ANIMALS"
+Subtitle.TextColor3 = Color3.fromRGB(160, 145, 185)
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.TextSize = 11
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.Parent = Header
+
+local Decoration = Instance.new("TextLabel")
+Decoration.Size = UDim2.fromOffset(65, 30)
+Decoration.Position = UDim2.new(1, -155, 0, 12)
+Decoration.BackgroundTransparency = 1
+Decoration.Text = "✧ ◆ ✧"
+Decoration.TextColor3 = Pink
+Decoration.Font = Enum.Font.GothamBold
+Decoration.TextSize = 17
+Decoration.Parent = Header
+
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.fromOffset(32, 32)
+MinimizeButton.Position = UDim2.new(1, -78, 0, 11)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(65, 55, 85)
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 22
+MinimizeButton.AutoButtonColor = false
+MinimizeButton.Parent = Header
+Corner(MinimizeButton, 8)
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.fromOffset(32, 32)
+CloseButton.Position = UDim2.new(1, -39, 0, 11)
+CloseButton.BackgroundColor3 = Color3.fromRGB(180, 55, 75)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 14
+CloseButton.AutoButtonColor = false
+CloseButton.Parent = Header
+Corner(CloseButton, 8)
+
+local Body = Instance.new("Frame")
+Body.Name = "Body"
+Body.Size = UDim2.new(1, 0, 1, -55)
+Body.Position = UDim2.fromOffset(0, 55)
+Body.BackgroundColor3 = Dark
+Body.BorderSizePixel = 0
+Body.Parent = MainFrame
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 140, 1, -24)
+Sidebar.Position = UDim2.fromOffset(12, 12)
+Sidebar.BackgroundColor3 = Panel
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Body
+Corner(Sidebar, 10)
+local SidebarStroke = Stroke(Sidebar, Color3.fromRGB(65, 50, 90), 1)
+
+local SidebarTitle = Instance.new("TextLabel")
+SidebarTitle.Size = UDim2.new(1, -20, 0, 30)
+SidebarTitle.Position = UDim2.fromOffset(10, 7)
+SidebarTitle.BackgroundTransparency = 1
+SidebarTitle.Text = "NAVIGATION"
+SidebarTitle.TextColor3 = Color3.fromRGB(140, 125, 165)
+SidebarTitle.Font = Enum.Font.GothamBold
+SidebarTitle.TextSize = 10
+SidebarTitle.TextXAlignment = Enum.TextXAlignment.Left
+SidebarTitle.Parent = Sidebar
+
+local Separator = Instance.new("Frame")
+Separator.Size = UDim2.new(1, -20, 0, 1)
+Separator.Position = UDim2.fromOffset(10, 38)
+Separator.BackgroundColor3 = Color3.fromRGB(65, 55, 80)
+Separator.BorderSizePixel = 0
+Separator.Parent = Sidebar
+
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, -14, 1, -55)
+TabContainer.Position = UDim2.fromOffset(7, 47)
+TabContainer.BackgroundTransparency = 1
+TabContainer.Parent = Sidebar
+
+local TabLayout = Instance.new("UIListLayout")
+TabLayout.Padding = UDim.new(0, 8)
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.Parent = TabContainer
+
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, -164, 1, -24)
+Content.Position = UDim2.fromOffset(152, 12)
+Content.BackgroundColor3 = Panel
+Content.BorderSizePixel = 0
+Content.Parent = Body
+Corner(Content, 10)
+local ContentStroke = Stroke(Content, Color3.fromRGB(65, 50, 90), 1)
+
+local ContentLine = Instance.new("Frame")
+ContentLine.Size = UDim2.new(0, 55, 0, 2)
+ContentLine.Position = UDim2.fromOffset(15, 0)
+ContentLine.BackgroundColor3 = Purple
+ContentLine.BorderSizePixel = 0
+ContentLine.Parent = Content
+Corner(ContentLine, 2)
+Gradient(ContentLine, {Purple, Pink, Blue}, 0)
+
+local Tabs = {}
+local TabButtons = {}
+local SelectedTab = nil
+local ActiveTabColor = Color3.fromRGB(90, 58, 130)
+local InactiveTabColor = Color3.fromRGB(36, 32, 49)
+local Dragging = false
+local DragInput
+local DragStart
+local StartPosition
+local DragThreshold = 5
+
+local function IsOverButton(Position)
+	local Objects = LocalPlayer.PlayerGui:GetGuiObjectsAtPosition(Position.X, Position.Y)
+	for _, Object in ipairs(Objects) do
+		if Object:IsA("GuiButton") and Object.Visible then
+			return true
+		end
+	end
+	return false
+end
+
+MainFrame.InputBegan:Connect(function(Input)
+	if IsClosing or IsAnimating then return end
+	if Input.UserInputType ~= Enum.UserInputType.MouseButton1 and Input.UserInputType ~= Enum.UserInputType.Touch then return end
+	if IsOverButton(Input.Position) then return end
+
+	Dragging = true
+	DragStart = Input.Position
+	StartPosition = MainFrame.Position
+
+	Input.Changed:Connect(function()
+		if Input.UserInputState == Enum.UserInputState.End then
+			Dragging = false
+		end
+	end)
+end)
+
+MainFrame.InputChanged:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+		DragInput = Input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(Input)
+	if not Dragging or Input ~= DragInput then return end
+
+	local Delta = Input.Position - DragStart
+	if Delta.Magnitude < DragThreshold then return end
+
+	MainFrame.Position = UDim2.new(
+		StartPosition.X.Scale,
+		StartPosition.X.Offset + Delta.X,
+		StartPosition.Y.Scale,
+		StartPosition.Y.Offset + Delta.Y
+	)
+end)
+
+UserInputService.InputEnded:Connect(function(Input)
+	if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = false
+	end
+end)
+
+local function SelectTab(Name)
+	if SelectedTab == Name then return end
+	SelectedTab = Name
+	for TabName, Page in pairs(Tabs) do
+		local Selected = TabName == Name
+		local Button = TabButtons[TabName]
+		Page.Visible = Selected
+		Tween(Button, FastTween, {
+			BackgroundColor3 = Selected and ActiveTabColor or InactiveTabColor,
+			TextColor3 = Selected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(170, 160, 190)
+		})
+	end
+end
+
+local function CreateTab(Name, Icon)
+	local Button = Instance.new("TextButton")
+	Button.Name = Name .. "TabButton"
+	Button.Size = UDim2.new(1, 0, 0, 40)
+	Button.BackgroundColor3 = InactiveTabColor
+	Button.Text = Icon .. "    " .. Name
+	Button.TextColor3 = Color3.fromRGB(170, 160, 190)
+	Button.Font = Enum.Font.GothamMedium
+	Button.TextSize = 13
+	Button.TextXAlignment = Enum.TextXAlignment.Left
+	Button.AutoButtonColor = false
+	Button.Parent = TabContainer
+	Corner(Button, 7)
+
+	local ButtonPadding = Instance.new("UIPadding")
+	ButtonPadding.PaddingLeft = UDim.new(0, 12)
+	ButtonPadding.Parent = Button
+
+	local Page = Instance.new((Name == "Main" or Name == "Settings") and "ScrollingFrame" or "Frame")
+	Page.Name = Name .. "Page"
+	Page.Size = UDim2.new(1, 0, 1, 0)
+	Page.BackgroundTransparency = 1
+	Page.BorderSizePixel = 0
+	Page.Visible = false
+	Page.Parent = Content
+
+	if Name == "Main" or Name == "Settings" then
+		Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		Page.CanvasSize = UDim2.new(0, 0, 0, 0)
+		Page.ScrollingDirection = Enum.ScrollingDirection.Y
+		Page.ScrollBarThickness = 4
+		Page.ScrollBarImageColor3 = Purple
+		Page.Active = true
+	end
+
+	Tabs[Name] = Page
+	TabButtons[Name] = Button
+
+	Button.MouseButton1Click:Connect(function()
+		if not IsClosing then
+			SelectTab(Name)
+		end
+	end)
+
+	Button.MouseEnter:Connect(function()
+		if SelectedTab ~= Name then
+			Tween(Button, FastTween, {BackgroundColor3 = Color3.fromRGB(55, 45, 72)})
+		end
+	end)
+
+	Button.MouseLeave:Connect(function()
+		if SelectedTab ~= Name then
+			Tween(Button, FastTween, {BackgroundColor3 = InactiveTabColor})
+		end
+	end)
+
+	return Page
+end
+
+local MainPage = CreateTab("Main", "◆")
+local SettingsPage = CreateTab("Settings", "⚙")
+local InfoPage = CreateTab("Info", "ℹ️")
+
+local MainTitle = Instance.new("TextLabel")
+MainTitle.Size = UDim2.new(1, 0, 0, 32)
+MainTitle.BackgroundTransparency = 1
+MainTitle.Text = "✦  Main Features"
+MainTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+MainTitle.Font = Enum.Font.GothamBold
+MainTitle.TextSize = 19
+MainTitle.TextXAlignment = Enum.TextXAlignment.Left
+MainTitle.Parent = MainPage
+
+local MainDescription = Instance.new("TextLabel")
+MainDescription.Size = UDim2.new(1, 0, 0, 24)
+MainDescription.Position = UDim2.fromOffset(0, 32)
+MainDescription.BackgroundTransparency = 1
+MainDescription.Text = "Manage your automation features."
+MainDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+MainDescription.Font = Enum.Font.Gotham
+MainDescription.TextSize = 12
+MainDescription.TextXAlignment = Enum.TextXAlignment.Left
+MainDescription.Parent = MainPage
+
+local AutoCard = Instance.new("Frame")
+AutoCard.Size = UDim2.new(1, 0, 0, 85)
+AutoCard.Position = UDim2.fromOffset(0, 70)
+AutoCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoCard.BorderSizePixel = 0
+AutoCard.Parent = MainPage
+Corner(AutoCard, 9)
+Stroke(AutoCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoIcon = Instance.new("TextLabel")
+AutoIcon.Size = UDim2.fromOffset(42, 42)
+AutoIcon.Position = UDim2.fromOffset(12, 21)
+AutoIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoIcon.Text = "🎯"
+AutoIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoIcon.Font = Enum.Font.GothamBold
+AutoIcon.TextSize = 22
+AutoIcon.Parent = AutoCard
+Corner(AutoIcon, 9)
+
+local AutoPerfectTitle = Instance.new("TextLabel")
+AutoPerfectTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoPerfectTitle.Position = UDim2.fromOffset(65, 17)
+AutoPerfectTitle.BackgroundTransparency = 1
+AutoPerfectTitle.Text = "Auto Perfect"
+AutoPerfectTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoPerfectTitle.Font = Enum.Font.GothamBold
+AutoPerfectTitle.TextSize = 14
+AutoPerfectTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoPerfectTitle.Parent = AutoCard
+
+local AutoDescription = Instance.new("TextLabel")
+AutoDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoDescription.Position = UDim2.fromOffset(65, 40)
+AutoDescription.BackgroundTransparency = 1
+AutoDescription.Text = "Auto Click at 20%"
+AutoDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoDescription.Font = Enum.Font.Gotham
+AutoDescription.TextSize = 10
+AutoDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoDescription.Parent = AutoCard
+
+local AutoPerfectButton = Instance.new("TextButton")
+AutoPerfectButton.Name = "AutoPerfectToggle"
+AutoPerfectButton.Size = UDim2.fromOffset(105, 35)
+AutoPerfectButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoPerfectButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoPerfectButton.Text = "OFF"
+AutoPerfectButton.TextColor3 = Color3.new(1, 1, 1)
+AutoPerfectButton.Font = Enum.Font.GothamBold
+AutoPerfectButton.TextSize = 12
+AutoPerfectButton.AutoButtonColor = false
+AutoPerfectButton.Parent = AutoCard
+Corner(AutoPerfectButton, 7)
+local ToggleStroke = Stroke(AutoPerfectButton, Color3.fromRGB(230, 100, 110), 1)
+
+local function SetAutoPerfectState(State)
+	AutoEnabled = State
+	AutoPerfectButton.Text = State and "ON" or "OFF"
+
+	if not State then
+		LastY = nil
+		PreviousMarkerTop = nil
+		WasAboveTop = false
+	end
+
+	Tween(AutoPerfectButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(ToggleStroke, SmoothTween, {
+		Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+AutoPerfectButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	if not AutoEnabled and IsTrainingSequenceEnabled() then
+		Notify("You cannot enable Auto Perfect while Training is active!")
+		return
+	end
+
+	if not AutoEnabled and (AutoThrowEnabled or AutoTrainingEnabled) then
+		Notify("Please turn off Auto Throw and Auto Training before enabling Auto Perfect!")
+		return
+	end
+
+	AutoEnabled = not AutoEnabled
+
+	if AutoEnabled then
+		AutoPerfectButton.Text = "ON"
+		Tween(AutoPerfectButton, SmoothTween, {BackgroundColor3 = Color3.fromRGB(45, 155, 90)})
+		Tween(ToggleStroke, SmoothTween, {Color = Color3.fromRGB(100, 230, 145)})
+		Notify("Auto Perfect has been enabled!")
+	else
+		AutoPerfectButton.Text = "OFF"
+		LastY = nil
+		Tween(AutoPerfectButton, SmoothTween, {BackgroundColor3 = Color3.fromRGB(180, 55, 65)})
+		Tween(ToggleStroke, SmoothTween, {Color = Color3.fromRGB(230, 100, 110)})
+		Notify("Auto Perfect has been disabled!")
+	end
+end)
+
+AutoPerfectButton.MouseEnter:Connect(function()
+	Tween(AutoPerfectButton, FastTween, {
+		BackgroundColor3 = AutoEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)
+	})
+end)
+
+AutoPerfectButton.MouseLeave:Connect(function()
+	Tween(AutoPerfectButton, FastTween, {
+		BackgroundColor3 = AutoEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+end)
+
+local AutoThrowCard = Instance.new("Frame")
+AutoThrowCard.Size = UDim2.new(1, 0, 0, 85)
+AutoThrowCard.Position = UDim2.fromOffset(0, 165)
+AutoThrowCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoThrowCard.BorderSizePixel = 0
+AutoThrowCard.Parent = MainPage
+Corner(AutoThrowCard, 9)
+Stroke(AutoThrowCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoThrowIcon = Instance.new("TextLabel")
+AutoThrowIcon.Size = UDim2.fromOffset(42, 42)
+AutoThrowIcon.Position = UDim2.fromOffset(12, 21)
+AutoThrowIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoThrowIcon.Text = "🏹"
+AutoThrowIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoThrowIcon.Font = Enum.Font.GothamBold
+AutoThrowIcon.TextSize = 22
+AutoThrowIcon.Parent = AutoThrowCard
+Corner(AutoThrowIcon, 9)
+
+local AutoThrowTitle = Instance.new("TextLabel")
+AutoThrowTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoThrowTitle.Position = UDim2.fromOffset(65, 17)
+AutoThrowTitle.BackgroundTransparency = 1
+AutoThrowTitle.Text = "Auto Throw"
+AutoThrowTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoThrowTitle.Font = Enum.Font.GothamBold
+AutoThrowTitle.TextSize = 14
+AutoThrowTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoThrowTitle.Parent = AutoThrowCard
+
+local AutoThrowDescription = Instance.new("TextLabel")
+AutoThrowDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoThrowDescription.Position = UDim2.fromOffset(65, 40)
+AutoThrowDescription.BackgroundTransparency = 1
+AutoThrowDescription.Text = "Auto Perfect and Auto Throw"
+AutoThrowDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoThrowDescription.Font = Enum.Font.Gotham
+AutoThrowDescription.TextSize = 10
+AutoThrowDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoThrowDescription.Parent = AutoThrowCard
+
+local AutoThrowButton = Instance.new("TextButton")
+AutoThrowButton.Name = "AutoThrowToggle"
+AutoThrowButton.Size = UDim2.fromOffset(105, 35)
+AutoThrowButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoThrowButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoThrowButton.Text = "OFF"
+AutoThrowButton.TextColor3 = Color3.new(1, 1, 1)
+AutoThrowButton.Font = Enum.Font.GothamBold
+AutoThrowButton.TextSize = 12
+AutoThrowButton.AutoButtonColor = false
+AutoThrowButton.Parent = AutoThrowCard
+Corner(AutoThrowButton, 7)
+local AutoThrowStroke = Stroke(AutoThrowButton, Color3.fromRGB(230, 100, 110), 1)
+
+
+local AutoTrainingCard = Instance.new("Frame")
+AutoTrainingCard.Name = "AutoTrainingCard"
+AutoTrainingCard.Size = UDim2.new(1, 0, 0, 85)
+AutoTrainingCard.Position = UDim2.fromOffset(0, 260)
+AutoTrainingCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoTrainingCard.BorderSizePixel = 0
+AutoTrainingCard.Parent = MainPage
+Corner(AutoTrainingCard, 9)
+Stroke(AutoTrainingCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoTrainingIcon = Instance.new("TextLabel")
+AutoTrainingIcon.Size = UDim2.fromOffset(42, 42)
+AutoTrainingIcon.Position = UDim2.fromOffset(12, 21)
+AutoTrainingIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoTrainingIcon.Text = "🏋️"
+AutoTrainingIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoTrainingIcon.Font = Enum.Font.GothamBold
+AutoTrainingIcon.TextSize = 22
+AutoTrainingIcon.Parent = AutoTrainingCard
+Corner(AutoTrainingIcon, 9)
+
+local AutoTrainingTitle = Instance.new("TextLabel")
+AutoTrainingTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoTrainingTitle.Position = UDim2.fromOffset(65, 17)
+AutoTrainingTitle.BackgroundTransparency = 1
+AutoTrainingTitle.Text = "Auto Training"
+AutoTrainingTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoTrainingTitle.Font = Enum.Font.GothamBold
+AutoTrainingTitle.TextSize = 14
+AutoTrainingTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoTrainingTitle.Parent = AutoTrainingCard
+
+local AutoTrainingDescription = Instance.new("TextLabel")
+AutoTrainingDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoTrainingDescription.Position = UDim2.fromOffset(65, 40)
+AutoTrainingDescription.BackgroundTransparency = 1
+AutoTrainingDescription.Text = "Auto Training and Tap Bonus"
+AutoTrainingDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoTrainingDescription.Font = Enum.Font.Gotham
+AutoTrainingDescription.TextSize = 10
+AutoTrainingDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoTrainingDescription.Parent = AutoTrainingCard
+
+local AutoTrainingButton = Instance.new("TextButton")
+AutoTrainingButton.Name = "AutoTrainingToggle"
+AutoTrainingButton.Size = UDim2.fromOffset(105, 35)
+AutoTrainingButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoTrainingButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoTrainingButton.Text = "OFF"
+AutoTrainingButton.TextColor3 = Color3.new(1, 1, 1)
+AutoTrainingButton.Font = Enum.Font.GothamBold
+AutoTrainingButton.TextSize = 12
+AutoTrainingButton.AutoButtonColor = false
+AutoTrainingButton.Parent = AutoTrainingCard
+Corner(AutoTrainingButton, 7)
+
+local AutoTrainingStroke = Stroke(AutoTrainingButton, Color3.fromRGB(230, 100, 110), 1)
+
+
+local function CreateSettingsCard(Name, PositionY)
+	local Card = Instance.new("Frame")
+	Card.Name = Name
+	Card.Size = UDim2.new(1, 0, 0, 65)
+	Card.Position = UDim2.fromOffset(0, PositionY)
+	Card.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+	Card.BorderSizePixel = 0
+	Card.Parent = SettingsPage
+	Corner(Card, 8)
+	Stroke(Card, Color3.fromRGB(75, 55, 100), 1)
+	return Card
+end
+
+local function CreateSettingsText(Card, Text)
+	local Label = Instance.new("TextLabel")
+	Label.Size = UDim2.new(1, -145, 1, 0)
+	Label.Position = UDim2.fromOffset(12, 0)
+	Label.BackgroundTransparency = 1
+	Label.Text = Text
+	Label.TextColor3 = Color3.fromRGB(230, 220, 245)
+	Label.Font = Enum.Font.GothamBold
+	Label.TextSize = 12
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+	Label.Parent = Card
+	return Label
+end
+
+local function CreateSettingsButton(Card, Text)
+	local Button = Instance.new("TextButton")
+	Button.Size = UDim2.fromOffset(115, 34)
+	Button.AnchorPoint = Vector2.new(1, 0.5)
+	Button.Position = UDim2.new(1, -12, 0.5, 0)
+	Button.BackgroundColor3 = Color3.fromRGB(75, 50, 110)
+	Button.Text = Text
+	Button.TextColor3 = Color3.new(1, 1, 1)
+	Button.Font = Enum.Font.GothamBold
+	Button.TextSize = 11
+	Button.AutoButtonColor = false
+	Button.Parent = Card
+	Corner(Button, 7)
+	return Button
+end
+
+local KeybindCard = CreateSettingsCard("KeybindCard", 70)
+CreateSettingsText(KeybindCard, "GUI Toggle Key")
+
+local KeybindButton = CreateSettingsButton(KeybindCard, IsPC and ToggleKey.Name or "PC ONLY")
+
+local ColorCard = CreateSettingsCard("ColorCard", 145)
+CreateSettingsText(ColorCard, "GUI Theme")
+
+local ColorButton = CreateSettingsButton(ColorCard, "SELECT THEME")
+
+local AntiAFKCard = CreateSettingsCard("AntiAFKCard", 220)
+CreateSettingsText(AntiAFKCard, "Anti AFK")
+
+local AntiAFKButton = CreateSettingsButton(AntiAFKCard, "OFF")
+
+local CurrentTheme = nil
+local ThemeMenuOpen = false
+
+local ThemeMenu = Instance.new("ScrollingFrame")
+ThemeMenu.Name = "ThemeMenu"
+ThemeMenu.Size = UDim2.new(1, -10, 0, 155)
+ThemeMenu.Position = UDim2.fromOffset(5, 213)
+ThemeMenu.BackgroundColor3 = Color3.fromRGB(24, 23, 36)
+ThemeMenu.BorderSizePixel = 0
+ThemeMenu.Visible = false
+ThemeMenu.ZIndex = 20
+ThemeMenu.Active = true
+ThemeMenu.ScrollingDirection = Enum.ScrollingDirection.Y
+ThemeMenu.ScrollBarThickness = 4
+ThemeMenu.ScrollBarImageColor3 = Purple
+ThemeMenu.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ThemeMenu.CanvasSize = UDim2.new(0, 0, 0, 0)
+ThemeMenu.Parent = SettingsPage
+Corner(ThemeMenu, 8)
+
+local ThemeMenuStroke = Stroke(ThemeMenu, Color3.fromRGB(75, 55, 100), 1)
+
+local ThemeMenuLayout = Instance.new("UIListLayout")
+ThemeMenuLayout.Padding = UDim.new(0, 3)
+ThemeMenuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ThemeMenuLayout.Parent = ThemeMenu
+
+local ThemeMenuPadding = Instance.new("UIPadding")
+ThemeMenuPadding.PaddingTop = UDim.new(0, 4)
+ThemeMenuPadding.PaddingLeft = UDim.new(0, 5)
+ThemeMenuPadding.PaddingRight = UDim.new(0, 5)
+ThemeMenuPadding.Parent = ThemeMenu
+
+local ThemeButtons = {}
+
+local function UpdateFrameColors(ThemeColor)
+	local DarkColor = ThemeColor:Lerp(Color3.fromRGB(12, 12, 20), 0.48)
+	local PanelColor = ThemeColor:Lerp(Color3.fromRGB(12, 12, 20), 0.30)
+	local CardColor = ThemeColor:Lerp(Color3.fromRGB(12, 12, 20), 0.18)
+	local StrokeColor = ThemeColor:Lerp(Color3.new(1, 1, 1), 0.28)
+
+	MainFrame.BackgroundColor3 = DarkColor
+	Body.BackgroundColor3 = DarkColor
+	Header.BackgroundColor3 = ThemeColor:Lerp(Color3.new(0, 0, 0), 0.25)
+	Sidebar.BackgroundColor3 = PanelColor
+	Content.BackgroundColor3 = PanelColor
+	ThemeMenu.BackgroundColor3 = PanelColor
+
+	local Cards = {
+		AutoCard,
+		AutoThrowCard,
+		AutoTrainingCard,
+		KeybindCard,
+		ColorCard,
+		AntiAFKCard
+	}
+
+	for _, Card in ipairs(Cards) do
+		if Card and Card.Parent then
+			Card.BackgroundColor3 = CardColor
+		end
+	end
+
+	SidebarStroke.Color = StrokeColor
+	ContentStroke.Color = StrokeColor
+	ThemeMenuStroke.Color = StrokeColor
+	MainStroke.Color = StrokeColor
+
+	for _, Object in ipairs(ScreenGui:GetDescendants()) do
+		if Object:IsA("UIStroke") then
+			if Object.Parent ~= AutoPerfectButton
+				and Object.Parent ~= AutoThrowButton
+				and Object.Parent ~= AutoTrainingButton then
+				Object.Color = StrokeColor
+			end
+		elseif Object:IsA("UIGradient") then
+			Object.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, ThemeColor:Lerp(Color3.new(1, 1, 1), 0.18)),
+				ColorSequenceKeypoint.new(0.5, ThemeColor),
+				ColorSequenceKeypoint.new(1, ThemeColor:Lerp(Color3.new(0, 0, 0), 0.25))
+			})
+		end
+	end
+
+	for _, Button in ipairs(ThemeButtons) do
+		if Button and Button.Parent then
+			Button.BackgroundColor3 = CardColor
+		end
+	end
+
+	CurrentTheme = ThemeColor
+end
+
+for Index, Theme in ipairs(ThemeColors) do
+	local ThemeButton = Instance.new("TextButton")
+	ThemeButton.Name = Theme.Name .. "ThemeButton"
+	ThemeButton.Size = UDim2.new(1, 0, 0, 25)
+	ThemeButton.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+	ThemeButton.BorderSizePixel = 0
+	ThemeButton.Text = Theme.Name
+	ThemeButton.TextColor3 = Color3.fromRGB(240, 230, 255)
+	ThemeButton.Font = Enum.Font.GothamBold
+	ThemeButton.TextSize = 11
+	ThemeButton.AutoButtonColor = false
+	ThemeButton.LayoutOrder = Index
+	ThemeButton.ZIndex = 21
+	ThemeButton.Parent = ThemeMenu
+	Corner(ThemeButton, 5)
+
+	table.insert(ThemeButtons, ThemeButton)
+
+	ThemeButton.MouseButton1Click:Connect(function()
+		if IsClosing then return end
+
+		UpdateFrameColors(Theme.Color)
+		ColorButton.Text = Theme.Name
+		ThemeMenu.Visible = false
+		ThemeMenuOpen = false
+
+		Notify("Theme changed to " .. Theme.Name .. "!")
+	end)
+end
+
+UpdateFrameColors(Purple)
+ColorButton.Text = "Default"
+
+ColorButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	ThemeMenuOpen = not ThemeMenuOpen
+	ThemeMenu.Visible = ThemeMenuOpen
+end)
+
+local function SetAntiAFK(State)
+	AntiAFKEnabled = State
+	AntiAFKButton.Text = State and "ON" or "OFF"
+
+	Tween(AntiAFKButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Notify(State and "Anti AFK has been enabled!" or "Anti AFK has been disabled!")
+end
+
+AntiAFKButton.MouseButton1Click:Connect(function()
+	SetAntiAFK(not AntiAFKEnabled)
+end)
+
+KeybindButton.MouseButton1Click:Connect(function()
+	if not IsPC then
+		Notify("GUI Keybind is only available on PC!")
+		return
+	end
+
+	AwaitingKeybind = true
+	KeybindButton.Text = "PRESS KEY..."
+	Notify("Press a keyboard key to set your GUI toggle!")
+end)
+
+local function ToggleGUI()
+	if IsClosing or IsAnimating then return end
+
+	IsAnimating = true
+
+	if MainFrame.Visible then
+		local ScaleTween = Tween(MainScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			Scale = 0.82
+		})
+
+		Tween(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			GroupTransparency = 1
+		})
+
+		ScaleTween.Completed:Wait()
+
+		if not IsClosing then
+			MainFrame.Visible = false
+		end
+	else
+		MainFrame.Visible = true
+		MainScale.Scale = 0.82
+		MainFrame.GroupTransparency = 1
+
+		local ScaleTween = Tween(MainScale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			Scale = 1
+		})
+
+		Tween(MainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			GroupTransparency = 0
+		})
+
+		ScaleTween.Completed:Wait()
+	end
+
+	IsAnimating = false
+end
+
+UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+	if IsClosing then return end
+	if Input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+	if AwaitingKeybind then
+		if Input.KeyCode == Enum.KeyCode.Escape then
+			AwaitingKeybind = false
+			KeybindButton.Text = ToggleKey.Name
+			Notify("Keybind selection cancelled!")
+			return
+		end
+
+		if Input.KeyCode ~= Enum.KeyCode.Unknown then
+			ToggleKey = Input.KeyCode
+			AwaitingKeybind = false
+			KeybindButton.Text = ToggleKey.Name
+			Notify("GUI toggle key changed to " .. ToggleKey.Name)
+		end
+
+		return
+	end
+
+	if not IsPC or GameProcessed then return end
+
+	if Input.KeyCode == ToggleKey then
+		ToggleGUI()
+	end
+end)
+
+LocalPlayer.Idled:Connect(function()
+	if not AntiAFKEnabled or IsClosing then return end
+
+	pcall(function()
+		VirtualUser:CaptureController()
+		VirtualUser:ClickButton2(Vector2.new(0, 0))
+	end)
+end)
+
+local function SetAutoTrainingState(State)
+	AutoTrainingEnabled = State
+	AutoTrainingButton.Text = State and "ON" or "OFF"
+
+	Tween(AutoTrainingButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(AutoTrainingStroke, SmoothTween, {
+		Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+local function SetAutoThrowState(State)
+	AutoThrowEnabled = State
+	AutoThrowButton.Text = State and "ON" or "OFF"
+
+	Tween(AutoThrowButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(AutoThrowStroke, SmoothTween, {
+		Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+local function TeleportToStarterArea()
+	local StarterArea = workspace:FindFirstChild("StarterArea")
+	if not StarterArea then return false end
+
+	local TargetPart
+	if StarterArea:IsA("BasePart") then
+		TargetPart = StarterArea
+	else
+		TargetPart = StarterArea.PrimaryPart or StarterArea:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	if not TargetPart then return false end
+
+	local Character = LocalPlayer.Character
+	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+
+	if not Character or not Humanoid or not Root then return false end
+
+	local HeightOffset = Humanoid.HipHeight + Root.Size.Y / 2
+	local TargetPosition = TargetPart.Position + Vector3.new(0, TargetPart.Size.Y / 2 + HeightOffset, 0)
+	local TargetCFrame = CFrame.new(TargetPosition) * CFrame.Angles(0, math.rad(Root.Orientation.Y), 0)
+
+	Root.AssemblyLinearVelocity = Vector3.zero
+	Root.AssemblyAngularVelocity = Vector3.zero
+	Character:PivotTo(TargetCFrame + Vector3.new(0, 1.3, 0))
+	Root.AssemblyLinearVelocity = Vector3.new(0, 13, 0)
+
+	return true
+end
+
+local function GetTrainingSpot()
+	local LocalPlotProps = workspace:FindFirstChild("LocalPlotProps", true)
+	if not LocalPlotProps then return nil end
+
+	local TrainingArea = LocalPlotProps:FindFirstChild("TrainingArea")
+	if not TrainingArea then return nil end
+
+	local TrainingSpot = TrainingArea:FindFirstChild("TrainingSpot")
+	if TrainingSpot and TrainingSpot:IsA("BasePart") then
+		return TrainingSpot
+	end
+
+	return nil
+end
+
+local function TeleportToTrainingSpot()
+	local TargetPart = GetTrainingSpot()
+	if not TargetPart then return false end
+
+	local Character = LocalPlayer.Character
+	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+
+	if not Character or not Humanoid or not Root then return false end
+
+	local Center = TargetPart.Position
+	local HeightOffset = TargetPart.Size.Y / 2 + Humanoid.HipHeight + Root.Size.Y / 2 + 3
+
+	local TargetPosition = Vector3.new(
+		Center.X,
+		Center.Y + HeightOffset,
+		Center.Z
+	)
+
+	local LookVector = Root.CFrame.LookVector
+	local TargetCFrame = CFrame.lookAt(
+		TargetPosition,
+		TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z)
+	)
+
+	Root.AssemblyLinearVelocity = Vector3.zero
+	Root.AssemblyAngularVelocity = Vector3.zero
+
+	Character:PivotTo(TargetCFrame)
+
+	Root.AssemblyLinearVelocity = Vector3.new(0, 13, 0)
+
+	task.wait(0.075)
+
+	if Root.Parent then
+		local CurrentPosition = Root.Position
+		local CenterPosition = Vector3.new(Center.X, CurrentPosition.Y, Center.Z)
+
+		Character:PivotTo(CFrame.new(CenterPosition) * (TargetCFrame - TargetCFrame.Position))
+	end
+
+	return true
+end
+
+
+local function IsTrainingActive()
+	local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+	if TrainingSequence and TrainingSequence:IsA("ScreenGui") and TrainingSequence.Enabled then
+		return true
+	end
+
+	local TrainingGui = PlayerGui:FindFirstChild("TraningGui", true)
+	if TrainingGui and TrainingGui:IsA("ScreenGui") and TrainingGui.Enabled then
+		return true
+	end
+
+	return false
+end
+
+local function AutoTapBonus()
+	local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+	if not TrainingSequence then return nil end
+
+	local TapBonus = TrainingSequence:FindFirstChild("TapBonus", true)
+
+	if not TapBonus then
+		local TapBonusLayer = TrainingSequence:FindFirstChild("TapBonusLayer", true)
+		if TapBonusLayer then
+			TapBonus = TapBonusLayer:FindFirstChild("TapBonus", true)
+		end
+	end
+
+	if not TapBonus then return nil end
+	if not TapBonus:IsA("GuiObject") then return nil end
+	if not TapBonus.Visible then return nil end
+	if TapBonus.AbsoluteSize.X <= 1 or TapBonus.AbsoluteSize.Y <= 1 then return nil end
+
+	local Parent = TapBonus.Parent
+
+	while Parent and Parent ~= PlayerGui do
+		if Parent:IsA("GuiObject") and not Parent.Visible then
+			return nil
+		end
+
+		if Parent:IsA("ScreenGui") and not Parent.Enabled then
+			return nil
+		end
+
+		Parent = Parent.Parent
+	end
+
+	return TapBonus
+end
+
+local function ClickTapBonus(Button)
+	if not Button or not Button.Parent then return false end
+	if not Button:IsA("GuiButton") then return false end
+	if not Button.Visible or not Button.Active then return false end
+
+	local Position = Button.AbsolutePosition
+	local Size = Button.AbsoluteSize
+
+	if Size.X <= 1 or Size.Y <= 1 then return false end
+
+	local CenterX = Position.X + Size.X / 2
+	local CenterY = Position.Y + Size.Y / 2
+
+	local Camera = workspace.CurrentCamera
+	if not Camera then return false end
+
+	local Viewport = Camera.ViewportSize
+
+	if CenterX < 0 or CenterY < 0 or CenterX > Viewport.X or CenterY > Viewport.Y then
+		return false
+	end
+
+	return pcall(function()
+		VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
+		task.wait(0.025)
+		VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
+	end)
+end
+
+
+AutoTrainingButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	if not AutoTrainingEnabled then
+		local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence", true)
+
+		if ThrowSequence then
+			Notify("Please wait until the current throw is finished before enabling Auto Training!")
+			return
+		end
+
+		if AutoEnabled or AutoThrowEnabled then
+			if AutoEnabled and AutoThrowEnabled then
+				Notify("Please turn off Auto Perfect and Auto Throw before enabling Auto Training!")
+			elseif AutoEnabled then
+				Notify("Please turn off Auto Perfect before enabling Auto Training!")
+			else
+				Notify("Please turn off Auto Throw before enabling Auto Training!")
+			end
+			return
+		end
+	end
+
+	AutoTrainingEnabled = not AutoTrainingEnabled
+	AutoTrainingToken += 1
+
+	local Token = AutoTrainingToken
+
+	if AutoTrainingEnabled then
+		SetAutoTrainingState(true)
+		Notify("Auto Training has been enabled!")
+
+		task.spawn(function()
+			while AutoTrainingEnabled and AutoTrainingToken == Token and not IsClosing do
+				if IsTrainingActive() then
+					local TapBonus = AutoTapBonus()
+
+					if TapBonus then
+						task.wait(0.12)
+						ClickTapBonus(TapBonus)
+					end
+
+					task.wait(0.05)
+				else
+					TeleportToTrainingSpot()
+					task.wait(0.5)
+				end
+			end
+		end)
+	else
+		SetAutoTrainingState(false)
+		Notify("Auto Training has been disabled!")
+	end
+end)
+
+AutoTrainingButton.MouseEnter:Connect(function()
+	Tween(AutoTrainingButton, FastTween, {
+		BackgroundColor3 = AutoTrainingEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)
+	})
+end)
+
+AutoTrainingButton.MouseLeave:Connect(function()
+	Tween(AutoTrainingButton, FastTween, {
+		BackgroundColor3 = AutoTrainingEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+end)
+
+AutoThrowButton.MouseEnter:Connect(function()
+	Tween(AutoThrowButton, FastTween, {
+		BackgroundColor3 = AutoThrowEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)
+	})
+end)
+
+AutoThrowButton.MouseLeave:Connect(function()
+	Tween(AutoThrowButton, FastTween, {
+		BackgroundColor3 = AutoThrowEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+end)
+
+local SettingsTitle = Instance.new("TextLabel")
+SettingsTitle.Size = UDim2.new(1, 0, 0, 32)
+SettingsTitle.BackgroundTransparency = 1
+SettingsTitle.Text = "⚙  Settings"
+SettingsTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+SettingsTitle.Font = Enum.Font.GothamBold
+SettingsTitle.TextSize = 19
+SettingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+SettingsTitle.Parent = SettingsPage
+
+local SettingsDescription = Instance.new("TextLabel")
+SettingsDescription.Size = UDim2.new(1, 0, 0, 25)
+SettingsDescription.Position = UDim2.fromOffset(0, 35)
+SettingsDescription.BackgroundTransparency = 1
+SettingsDescription.Text = "Customize your hub."
+SettingsDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+SettingsDescription.Font = Enum.Font.Gotham
+SettingsDescription.TextSize = 12
+SettingsDescription.TextXAlignment = Enum.TextXAlignment.Left
+SettingsDescription.Parent = SettingsPage
+
+local SettingsCard = Instance.new("Frame")
+SettingsCard.Size = UDim2.new(1, 0, 0, 65)
+SettingsCard.Position = UDim2.fromOffset(0, 70)
+SettingsCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+SettingsCard.BorderSizePixel = 0
+SettingsCard.Parent = SettingsPage
+Corner(SettingsCard, 8)
+Stroke(SettingsCard, Color3.fromRGB(75, 55, 100), 1)
+
+local SettingsCardText = Instance.new("TextLabel")
+SettingsCardText.Size = UDim2.new(1, -20, 1, 0)
+SettingsCardText.Position = UDim2.fromOffset(10, 0)
+SettingsCardText.BackgroundTransparency = 1
+SettingsCardText.Text = "More settings will be added here."
+SettingsCardText.TextColor3 = Color3.fromRGB(180, 165, 200)
+SettingsCardText.Font = Enum.Font.Gotham
+SettingsCardText.TextSize = 12
+SettingsCardText.TextXAlignment = Enum.TextXAlignment.Left
+SettingsCardText.Parent = SettingsCard
+SettingsCardText.Visible = false
+SettingsCard.Visible = false
+
+local InfoTitle = Instance.new("TextLabel")
+InfoTitle.Size = UDim2.new(1, 0, 0, 32)
+InfoTitle.BackgroundTransparency = 1
+InfoTitle.Text = "✧  Information"
+InfoTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+InfoTitle.Font = Enum.Font.GothamBold
+InfoTitle.TextSize = 19
+InfoTitle.TextXAlignment = Enum.TextXAlignment.Left
+InfoTitle.Parent = InfoPage
+
+local InfoDescription = Instance.new("TextLabel")
+InfoDescription.Size = UDim2.new(1, 0, 0, 25)
+InfoDescription.Position = UDim2.fromOffset(0, 35)
+InfoDescription.BackgroundTransparency = 1
+InfoDescription.Text = "Hub information and credits."
+InfoDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+InfoDescription.Font = Enum.Font.Gotham
+InfoDescription.TextSize = 12
+InfoDescription.TextXAlignment = Enum.TextXAlignment.Left
+InfoDescription.Parent = InfoPage
+
+local InfoCard = Instance.new("Frame")
+InfoCard.Size = UDim2.new(1, 0, 0, 105)
+InfoCard.Position = UDim2.fromOffset(0, 70)
+InfoCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+InfoCard.BorderSizePixel = 0
+InfoCard.Parent = InfoPage
+Corner(InfoCard, 9)
+Stroke(InfoCard, Color3.fromRGB(90, 60, 120), 1)
+
+local InfoText = Instance.new("TextLabel")
+InfoText.Size = UDim2.new(1, -24, 0, 45)
+InfoText.Position = UDim2.fromOffset(12, 10)
+InfoText.BackgroundTransparency = 1
+InfoText.Text = "MINI HUB\nVersion 1.0"
+InfoText.TextColor3 = Color3.fromRGB(195, 180, 215)
+InfoText.Font = Enum.Font.Gotham
+InfoText.TextSize = 12
+InfoText.TextXAlignment = Enum.TextXAlignment.Left
+InfoText.Parent = InfoCard
+
+local CreditLabel = Instance.new("TextLabel")
+CreditLabel.Name = "CreditLabel"
+CreditLabel.Size = UDim2.new(1, -24, 0, 35)
+CreditLabel.Position = UDim2.fromOffset(12, 62)
+CreditLabel.BackgroundColor3 = Color3.fromRGB(65, 40, 90)
+CreditLabel.Text = "✦  CREDIT: NP20K12  ✦"
+CreditLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+CreditLabel.Font = Enum.Font.GothamBold
+CreditLabel.TextSize = 13
+CreditLabel.Parent = InfoCard
+Corner(CreditLabel, 7)
+Gradient(CreditLabel, {
+	Color3.fromRGB(75, 40, 110),
+	Color3.fromRGB(100, 45, 100),
+	Color3.fromRGB(55, 55, 110)
+}, 0)
+
+SelectTab("Main")
+
+MinimizeButton.MouseEnter:Connect(function()
+	Tween(MinimizeButton, FastTween, {BackgroundColor3 = Color3.fromRGB(110, 80, 145)})
+end)
+
+MinimizeButton.MouseLeave:Connect(function()
+	Tween(MinimizeButton, FastTween, {BackgroundColor3 = Color3.fromRGB(65, 55, 85)})
+end)
+
+CloseButton.MouseEnter:Connect(function()
+	Tween(CloseButton, FastTween, {BackgroundColor3 = Color3.fromRGB(230, 65, 90)})
+end)
+
+CloseButton.MouseLeave:Connect(function()
+	Tween(CloseButton, FastTween, {BackgroundColor3 = Color3.fromRGB(180, 55, 75)})
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+	if IsAnimating or IsClosing then return end
+
+	IsAnimating = true
+	Minimized = not Minimized
+
+	if Minimized then
+		MinimizeButton.Text = "+"
+		local Animation = Tween(MainFrame, SmoothTween, {Size = MinimizedSize})
+		Animation.Completed:Wait()
+		if not IsClosing then
+			Body.Visible = false
+		end
+	else
+		Body.Visible = true
+		local Animation = Tween(MainFrame, SmoothTween, {Size = NormalSize})
+		MinimizeButton.Text = "-"
+		Animation.Completed:Wait()
+	end
+
+	IsAnimating = false
+end)
+
+local function ClickScreen()
+	if IsClosing or (not AutoEnabled and not AutoThrowEnabled) then return end
+
+	local Camera = workspace.CurrentCamera
+	if not Camera then return end
+
+	local ViewportSize = Camera.ViewportSize
+	local CenterX = ViewportSize.X / 2
+	local CenterY = ViewportSize.Y / 2
+
+	VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
+	task.wait(0.03)
+	VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
+end
+
+AutoThrowButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	if not AutoThrowEnabled and IsTrainingSequenceEnabled() then
+		Notify("You cannot enable Auto Throw while Training is active!")
+		return
+	end
+
+	if not AutoThrowEnabled and (AutoEnabled or AutoTrainingEnabled) then
+		Notify("Please turn off Auto Perfect and Auto Training before enabling Auto Throw!")
+		return
+	end
+
+	if AutoThrowEnabled then
+		AutoThrowToken += 1
+		SetAutoThrowState(false)
+		Notify("Auto Throw has been disabled!")
+		return
+	end
+
+	AutoThrowToken += 1
+	local Token = AutoThrowToken
+	SetAutoThrowState(true)
+	Notify("Auto Throw has been enabled!")
+
+	task.spawn(function()
+		local LastClick = 0
+
+		while AutoThrowEnabled and AutoThrowToken == Token and not IsClosing do
+			local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
+
+			if ThrowSequence and ThrowSequence.Enabled then
+				if tick() - LastClick >= 0.5 then
+					local HasVisibleLabel = false
+
+					for _, Object in ipairs(ThrowSequence:GetChildren()) do
+						if Object:IsA("TextLabel") and Object.Visible and Object.AbsoluteSize.X > 0 and Object.AbsoluteSize.Y > 0 then
+							HasVisibleLabel = true
+							break
+						end
+					end
+
+					if HasVisibleLabel and AutoThrowEnabled and AutoThrowToken == Token then
+						ClickScreen()
+						LastClick = tick()
+					end
+				end
+
+				task.wait(0.05)
+			else
+				LastClick = 0
+				TeleportToStarterArea()
+				task.wait(0.5)
+			end
+		end
+	end)
+end)
+
+local RenderConnection
+local PreviousMarkerTop = nil
+local WasAboveTop = false
+
+RenderConnection = RunService.RenderStepped:Connect(function()
+	if (not AutoEnabled and not AutoThrowEnabled) or IsClosing then
+		PreviousMarkerTop = nil
+		WasAboveTop = false
+		return
+	end
+
+	local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
+	if not ThrowSequence or not ThrowSequence.Enabled then
+		PreviousMarkerTop = nil
+		WasAboveTop = false
+		return
+	end
+
+	local Meter = ThrowSequence:FindFirstChild("Meter")
+	local Bar = Meter and Meter:FindFirstChild("Bar")
+	local Marker = Bar and Bar:FindFirstChild("Marker")
+	local Stripes = Bar and Bar:FindFirstChild("Stripes")
+
+	if not Marker or not Marker:IsA("GuiObject") or not Marker.Visible or not Stripes or not Stripes:IsA("GuiObject") or not Stripes.Visible then
+		PreviousMarkerTop = nil
+		WasAboveTop = false
+		return
+	end
+
+	local MarkerTop = Marker.AbsolutePosition.Y
+	local MarkerBottom = MarkerTop + Marker.AbsoluteSize.Y
+	local StripesTop = Stripes.AbsolutePosition.Y
+
+	if Marker.AbsoluteSize.Y <= 0 or Stripes.AbsoluteSize.Y <= 0 then
+		PreviousMarkerTop = nil
+		WasAboveTop = false
+		return
+	end
+
+	local IsMovingUp = PreviousMarkerTop ~= nil and MarkerTop < PreviousMarkerTop
+	local HasReachedTop = PreviousMarkerTop ~= nil
+		and PreviousMarkerTop > StripesTop
+		and MarkerTop <= StripesTop
+		and MarkerBottom >= StripesTop
+
+	if IsMovingUp and HasReachedTop and not WasAboveTop and tick() - LastClickTime >= 0.2 then
+		WasAboveTop = true
+		LastClickTime = tick()
+
+		task.spawn(function()
+			if not IsClosing and (AutoEnabled or AutoThrowEnabled) then
+				ClickScreen()
+			end
+		end)
+	end
+
+	if MarkerTop > StripesTop then
+		WasAboveTop = false
+	end
+
+	PreviousMarkerTop = MarkerTop
+end)
+
+local RainbowTween = TweenService:Create(BorderGradient, TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360})
+RainbowTween:Play()
+
+CloseButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	IsClosing = true
+	AutoEnabled = false
+	AutoThrowEnabled = false
+	AutoThrowToken += 1
+	AutoTrainingEnabled = false
+	AutoTrainingToken += 1
+
+	if RenderConnection then
+		RenderConnection:Disconnect()
+		RenderConnection = nil
+	end
+
+	RainbowTween:Cancel()
+
+	local CloseAnimation = Tween(MainScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.75})
+	Tween(MainFrame, TweenInfo.new(0.25), {GroupTransparency = 1})
+	CloseAnimation.Completed:Wait()
+
+	ScreenGui:Destroy()
+	CoreGuiLoading:Destroy()
+end)
+
+local CoreGuiLost = false
+
+local function StopAllFeatures()
+	if CoreGuiLost then return end
+	CoreGuiLost = true
+
+	AutoEnabled = false
+	AutoThrowToken += 1
+	AutoTrainingEnabled = false
+	AutoTrainingToken += 1
+	SetAutoThrowState(false)
+
+	AutoPerfectButton.Text = "OFF"
+	LastY = nil
+
+	Tween(AutoPerfectButton, SmoothTween, {
+		BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(ToggleStroke, SmoothTween, {
+		Color = Color3.fromRGB(230, 100, 110)
+	})
+
+	if RenderConnection then
+		RenderConnection:Disconnect()
+		RenderConnection = nil
+	end
+end
+
+ScreenGui.AncestryChanged:Connect(function()
+	if not ScreenGui:IsDescendantOf(CoreGui) and not ScreenGui:IsDescendantOf(PlayerGui) then
+		StopAllFeatures()
+	end
+end)
+
+task.spawn(function()
+	if not ScreenGui.Parent then return end
+
+	for Progress = 1, 100 do
+		if not ScreenGui.Parent then return end
+
+		LoadingPercent.Text = Progress .. "%"
+		LoadingStatus.Text = Progress < 100 and "Loading components..." or "Loading complete!"
+
+		Tween(LoadingFill, TweenInfo.new(0.01, Enum.EasingStyle.Linear), {
+			Size = UDim2.new(Progress / 100, 0, 1, 0)
+		})
+
+		task.wait(0.035)
+	end
+
+	task.wait(0.3)
+	if not ScreenGui.Parent then return end
+
+	Tween(LoadingFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		GroupTransparency = 1
+	}).Completed:Wait()
+
+	if not ScreenGui.Parent then return end
+
+	CoreGuiLoading:Destroy()
+
+	MainFrame.Visible = true
+	MainScale.Scale = 0.82
+	MainFrame.GroupTransparency = 1
+
+	Tween(MainScale, TweenInfo.new(0.65, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1})
+	Tween(MainFrame, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {GroupTransparency = 0})
+end)
