@@ -211,7 +211,7 @@ FullbrightBtn.BackgroundColor3 = Color3.fromRGB(170,0,0)
 FullbrightBtn.TextColor3 = Color3.new(1,1,1)
 
 local AutoGenBtn = Instance.new("TextButton", MainPage)
-AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 36)
+AutoGenBtn.Size = UDim2.new(0.9, 0, 0, 30)
 AutoGenBtn.Position = UDim2.new(0.05, 0, 0.25, 0)
 AutoGenBtn.Text = "AUTO FIX GENERATOR(One puzzle is still bugged): OFF"
 AutoGenBtn.TextScaled = true
