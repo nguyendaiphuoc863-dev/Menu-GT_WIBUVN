@@ -2123,7 +2123,10 @@ local function SetAutoThrowState(State)
 	})
 end
 
+
 local function TeleportToStarterArea()
+	if AutoFoodBusy then return false end
+
 	local StarterArea = workspace:FindFirstChild("StarterArea")
 	if not StarterArea then return false end
 
@@ -2140,7 +2143,7 @@ local function TeleportToStarterArea()
 	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
 
-	if not Character or not Humanoid or not Root then return false end
+	if not Character or not Humanoid or not Root or AutoFoodBusy then return false end
 
 	local HeightOffset = Humanoid.HipHeight + Root.Size.Y / 2
 	local TargetPosition = TargetPart.Position + Vector3.new(0, TargetPart.Size.Y / 2 + HeightOffset, 0)
@@ -2169,7 +2172,10 @@ local function GetTrainingSpot()
 	return nil
 end
 
+
 local function TeleportToTrainingSpot()
+	if AutoFoodBusy then return false end
+
 	local TargetPart = GetTrainingSpot()
 	if not TargetPart then return false end
 
@@ -2177,42 +2183,33 @@ local function TeleportToTrainingSpot()
 	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
 
-	if not Character or not Humanoid or not Root then return false end
+	if not Character or not Humanoid or not Root or AutoFoodBusy then return false end
 
 	local Center = TargetPart.Position
 	local HeightOffset = TargetPart.Size.Y / 2 + Humanoid.HipHeight + Root.Size.Y / 2 + 3
-
-	local TargetPosition = Vector3.new(
-		Center.X,
-		Center.Y + HeightOffset,
-		Center.Z
-	)
-
+	local TargetPosition = Vector3.new(Center.X, Center.Y + HeightOffset, Center.Z)
 	local LookVector = Root.CFrame.LookVector
-	local TargetCFrame = CFrame.lookAt(
-		TargetPosition,
-		TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z)
-	)
+	local TargetCFrame = CFrame.lookAt(TargetPosition, TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z))
+
+	if AutoFoodBusy then return false end
 
 	Root.AssemblyLinearVelocity = Vector3.zero
 	Root.AssemblyAngularVelocity = Vector3.zero
-
 	Character:PivotTo(TargetCFrame)
-
 	Root.AssemblyLinearVelocity = Vector3.new(0, 13, 0)
 
 	task.wait(0.075)
 
-	if Root.Parent then
+	if AutoFoodBusy then return false end
+
+	if Root.Parent and Character.Parent then
 		local CurrentPosition = Root.Position
 		local CenterPosition = Vector3.new(Center.X, CurrentPosition.Y, Center.Z)
-
 		Character:PivotTo(CFrame.new(CenterPosition) * (TargetCFrame - TargetCFrame.Position))
 	end
 
 	return true
 end
-
 
 local function IsTrainingActive()
 	local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
@@ -2832,7 +2829,10 @@ local function GetUpgradePrice()
 	return ParseFormattedNumber(PriceLabel.Text), PriceLabel.Text
 end
 
+
 local function TeleportToUpgradeButton()
+	if AutoFoodBusy then return false end
+
 	local TargetPart = GetUpgradeButtonPart()
 	if not TargetPart then return false end
 
@@ -2840,16 +2840,14 @@ local function TeleportToUpgradeButton()
 	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
 
-	if not Character or not Humanoid or not Root then return false end
+	if not Character or not Humanoid or not Root or AutoFoodBusy then return false end
 
 	local HeightOffset = TargetPart.Size.Y / 2 + Humanoid.HipHeight + Root.Size.Y / 2 + 2
 	local TargetPosition = TargetPart.Position + Vector3.new(0, HeightOffset, 0)
-
 	local LookVector = Root.CFrame.LookVector
-	local TargetCFrame = CFrame.lookAt(
-		TargetPosition,
-		TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z)
-	)
+	local TargetCFrame = CFrame.lookAt(TargetPosition, TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z))
+
+	if AutoFoodBusy then return false end
 
 	Root.AssemblyLinearVelocity = Vector3.zero
 	Root.AssemblyAngularVelocity = Vector3.zero
