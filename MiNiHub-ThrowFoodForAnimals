@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
@@ -30,6 +31,20 @@ local Minimized = false
 local IsAnimating = false
 local IsClosing = false
 local AutoThrowEnabled = false
+local AutoEquipBestEnabled = false
+local AutoEquipBestToken = 0
+local AutoUpgradeTrainingEnabled = false
+local AutoUpgradeTrainingToken = 0
+local AutoActionsPausedByUpgrade = false
+local AutoSellAllEnabled = false
+local AutoSellAllToken = 0
+local AutoSellRarityEnabled = false
+local AutoSellRarityToken = 0
+local AutoBuyFoodEnabled = false
+local AutoBuyFoodToken = 0
+local SellRequestBusy = false
+local SelectedSellRarities = {}
+local ALLOWED_PLACE_ID = 120219252362013
 local NormalSize = IsMobile and UDim2.fromOffset(370, 400) or UDim2.fromOffset(560, 370)
 local MinimizedSize = IsMobile and UDim2.fromOffset(370, 55) or UDim2.fromOffset(560, 55)
 local ScreenPadding = IsMobile and 12 or 20
@@ -49,6 +64,11 @@ local ThemeColors = {
 	{Name = "Rose", Color = Color3.fromRGB(175, 75, 115)},
 	{Name = "Lavender", Color = Color3.fromRGB(125, 105, 175)}
 }
+
+if game.PlaceId ~= ALLOWED_PLACE_ID then
+	warn("[MINI HUB] This script is not supported in this game!")
+	return
+end
 
 local function RemoveOldGui()
 	for _, container in ipairs({CoreGui, PlayerGui}) do
@@ -413,6 +433,98 @@ ContentLine.Parent = Content
 Corner(ContentLine, 2)
 Gradient(ContentLine, {Purple, Pink, Blue}, 0)
 
+local WarningFrame = Instance.new("Frame")
+WarningFrame.Name = "WarningFrame"
+WarningFrame.Size = UDim2.new(0, 0, 0, 0)
+WarningFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+WarningFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+WarningFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+WarningFrame.BorderSizePixel = 0
+WarningFrame.ClipsDescendants = true
+WarningFrame.Visible = false
+WarningFrame.ZIndex = 10
+WarningFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = WarningFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 80, 80)
+UIStroke.Thickness = 1.5
+UIStroke.Parent = WarningFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 35)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "⚠️ WARNING ⚠️"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 85, 85)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 18
+TitleLabel.ZIndex = 11
+TitleLabel.Parent = WarningFrame
+
+local DescLabel = Instance.new("TextLabel")
+DescLabel.Size = UDim2.new(1, -20, 0, 50)
+DescLabel.Position = UDim2.new(0, 10, 0, 35)
+DescLabel.BackgroundTransparency = 1
+DescLabel.Text = "Are you sure you want to close the script?"
+DescLabel.TextColor3 = Color3.fromRGB(230, 230, 230)
+DescLabel.Font = Enum.Font.Gotham
+DescLabel.TextSize = 14
+DescLabel.TextWrapped = true
+DescLabel.ZIndex = 11
+DescLabel.Parent = WarningFrame
+
+local YesButton = Instance.new("TextButton")
+YesButton.Size = UDim2.new(0.4, 0, 0, 35)
+YesButton.Position = UDim2.new(0.07, 0, 1, -48)
+YesButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+YesButton.Text = "Yes"
+YesButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+YesButton.Font = Enum.Font.GothamBold
+YesButton.TextSize = 14
+YesButton.ZIndex = 11
+YesButton.Parent = WarningFrame
+
+local YesCorner = Instance.new("UICorner")
+YesCorner.CornerRadius = UDim.new(0, 6)
+YesCorner.Parent = YesButton
+
+local NoButton = Instance.new("TextButton")
+NoButton.Size = UDim2.new(0.4, 0, 0, 35)
+NoButton.Position = UDim2.new(0.53, 0, 1, -48)
+NoButton.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+NoButton.Text = "No"
+NoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+NoButton.Font = Enum.Font.GothamBold
+NoButton.TextSize = 14
+NoButton.ZIndex = 11
+NoButton.Parent = WarningFrame
+
+local NoCorner = Instance.new("UICorner")
+NoCorner.CornerRadius = UDim.new(0, 6)
+NoCorner.Parent = NoButton
+
+local openTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local closeTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local targetSize = UDim2.new(0, 300, 0, 150)
+
+local function openWarning()
+	WarningFrame.Visible = true
+	WarningFrame.Size = UDim2.new(0, 0, 0, 0)
+	local tween = TweenService:Create(WarningFrame, openTweenInfo, {Size = targetSize})
+	tween:Play()
+end
+
+local function closeWarning()
+	local tween = TweenService:Create(WarningFrame, closeTweenInfo, {Size = UDim2.new(0, 0, 0, 0)})
+	tween:Play()
+	tween.Completed:Connect(function()
+		WarningFrame.Visible = false
+	end)
+end
+
 local Tabs = {}
 local TabButtons = {}
 local SelectedTab = nil
@@ -508,7 +620,7 @@ local function CreateTab(Name, Icon)
 	ButtonPadding.PaddingLeft = UDim.new(0, 12)
 	ButtonPadding.Parent = Button
 
-	local Page = Instance.new((Name == "Main" or Name == "Settings") and "ScrollingFrame" or "Frame")
+	local Page = Instance.new((Name == "Main" or Name == "Settings" or Name == "Buy/Upgrade" or Name == "Sell") and "ScrollingFrame" or "Frame")
 	Page.Name = Name .. "Page"
 	Page.Size = UDim2.new(1, 0, 1, 0)
 	Page.BackgroundTransparency = 1
@@ -516,7 +628,7 @@ local function CreateTab(Name, Icon)
 	Page.Visible = false
 	Page.Parent = Content
 
-	if Name == "Main" or Name == "Settings" then
+	if Name == "Main" or Name == "Settings" or Name == "Buy/Upgrade" or Name == "Sell" then
 		Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		Page.CanvasSize = UDim2.new(0, 0, 0, 0)
 		Page.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -550,8 +662,506 @@ local function CreateTab(Name, Icon)
 end
 
 local MainPage = CreateTab("Main", "◆")
-local SettingsPage = CreateTab("Settings", "⚙")
+local BuyUpgradePage = CreateTab("Buy/Upgrade", "🛒")
+local SellPage = CreateTab("Sell", "💰")
+local SettingsPage = CreateTab("Settings", "⚙️")
 local InfoPage = CreateTab("Info", "ℹ️")
+
+local SellTitle = Instance.new("TextLabel")
+SellTitle.Size = UDim2.new(1, 0, 0, 32)
+SellTitle.BackgroundTransparency = 1
+SellTitle.Text = "💰  Sell"
+SellTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+SellTitle.Font = Enum.Font.GothamBold
+SellTitle.TextSize = 19
+SellTitle.TextXAlignment = Enum.TextXAlignment.Left
+SellTitle.Parent = SellPage
+
+local SellDescription = Instance.new("TextLabel")
+SellDescription.Size = UDim2.new(1, 0, 0, 24)
+SellDescription.Position = UDim2.fromOffset(0, 32)
+SellDescription.BackgroundTransparency = 1
+SellDescription.Text = "Automatically sell animals from your backpack."
+SellDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+SellDescription.Font = Enum.Font.Gotham
+SellDescription.TextSize = 12
+SellDescription.TextXAlignment = Enum.TextXAlignment.Left
+SellDescription.Parent = SellPage
+
+local function CreateSellCard(Name, TitleText, DescriptionText, Y)
+	local Card = Instance.new("Frame")
+	Card.Name = Name
+	Card.Size = UDim2.new(1, -8, 0, 82)
+	Card.Position = UDim2.fromOffset(0, Y)
+	Card.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+	Card.BorderSizePixel = 0
+	Card.Parent = SellPage
+	Corner(Card, 9)
+	Stroke(Card, Color3.fromRGB(75, 55, 100), 1)
+
+	local TitleLabel = Instance.new("TextLabel")
+	TitleLabel.Size = UDim2.new(1, -145, 0, 25)
+	TitleLabel.Position = UDim2.fromOffset(13, 12)
+	TitleLabel.BackgroundTransparency = 1
+	TitleLabel.Text = TitleText
+	TitleLabel.TextColor3 = Color3.fromRGB(240, 230, 255)
+	TitleLabel.Font = Enum.Font.GothamBold
+	TitleLabel.TextSize = 14
+	TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	TitleLabel.Parent = Card
+
+	local Description = Instance.new("TextLabel")
+	Description.Size = UDim2.new(1, -145, 0, 32)
+	Description.Position = UDim2.fromOffset(13, 38)
+	Description.BackgroundTransparency = 1
+	Description.Text = DescriptionText
+	Description.TextColor3 = Color3.fromRGB(145, 135, 160)
+	Description.Font = Enum.Font.Gotham
+	Description.TextSize = 10
+	Description.TextWrapped = true
+	Description.TextXAlignment = Enum.TextXAlignment.Left
+	Description.TextYAlignment = Enum.TextYAlignment.Top
+	Description.Parent = Card
+
+	local Toggle = Instance.new("TextButton")
+	Toggle.Name = "Toggle"
+	Toggle.Size = UDim2.fromOffset(105, 35)
+	Toggle.Position = UDim2.new(1, -117, 0.5, -17)
+	Toggle.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+	Toggle.Text = "OFF"
+	Toggle.TextColor3 = Color3.new(1, 1, 1)
+	Toggle.Font = Enum.Font.GothamBold
+	Toggle.TextSize = 12
+	Toggle.AutoButtonColor = false
+	Toggle.Parent = Card
+	Corner(Toggle, 7)
+	local ToggleOutline = Stroke(Toggle, Color3.fromRGB(230, 100, 110), 1)
+
+	return Card, Toggle, ToggleOutline
+end
+
+local function SetSellToggle(Button, Outline, Enabled)
+	Button.Text = Enabled and "ON" or "OFF"
+	Tween(Button, SmoothTween, {
+		BackgroundColor3 = Enabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+	Tween(Outline, SmoothTween, {
+		Color = Enabled and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+local function InvokeSellAll()
+	local RemotesFolder = ReplicatedStorage:FindFirstChild("Remotes")
+	local SellAllRemote = RemotesFolder and RemotesFolder:FindFirstChild("Plot_SellAll")
+	if not SellAllRemote or not SellAllRemote:IsA("RemoteFunction") then
+		return false, "Plot_SellAll RemoteFunction was not found."
+	end
+
+	local Success, Result = pcall(function()
+		return SellAllRemote:InvokeServer()
+	end)
+	if not Success then
+		return false, tostring(Result)
+	end
+	if type(Result) == "table" and Result.Ok == false then
+		return false, Result.Reason or "Sell All was rejected."
+	end
+	return true, Result
+end
+
+local function GetAnimalSellData()
+	local PlayerScripts = LocalPlayer:FindFirstChild("PlayerScripts")
+	local Client = PlayerScripts and PlayerScripts:FindFirstChild("Client")
+	local Controllers = Client and Client:FindFirstChild("Controllers")
+	local DataModule = Controllers and Controllers:FindFirstChild("DataController")
+	if not DataModule then
+		return nil, nil, "DataController was not found in PlayerScripts.Client.Controllers."
+	end
+
+	local Success, DataController = pcall(require, DataModule)
+	if not Success or type(DataController) ~= "table" or type(DataController.Get) ~= "function" then
+		return nil, nil, "Could not load DataController:Get()."
+	end
+
+	local Animals = DataController:Get("Animals") or {}
+	local Shared = ReplicatedStorage:FindFirstChild("Shared")
+	local RemotesModule = Shared and Shared:FindFirstChild("Remotes")
+	if not RemotesModule then
+		return nil, nil, "Shared.Remotes module was not found."
+	end
+
+	local RemotesSuccess, RemotesApi = pcall(require, RemotesModule)
+	if not RemotesSuccess or type(RemotesApi) ~= "table" or type(RemotesApi.Invoke) ~= "function" then
+		return nil, nil, "Could not load Shared.Remotes.Invoke()."
+	end
+
+	local Config = ReplicatedStorage:FindFirstChild("Config")
+	local EconomyModule = Config and Config:FindFirstChild("AnimalEconomy")
+	if not EconomyModule then
+		return nil, nil, "Config.AnimalEconomy module was not found."
+	end
+
+	local EconomySuccess, AnimalEconomy = pcall(require, EconomyModule)
+	if not EconomySuccess or type(AnimalEconomy) ~= "table" or type(AnimalEconomy.Get) ~= "function" then
+		return nil, nil, "Could not load AnimalEconomy.Get()."
+	end
+
+	return Animals, {Remotes = RemotesApi, Economy = AnimalEconomy}
+end
+
+local function SellSelectedRarities()
+	if SellRequestBusy then return end
+	SellRequestBusy = true
+
+	local Animals, Api, ErrorMessage = GetAnimalSellData()
+	if not Animals or not Api then
+		SellRequestBusy = false
+		Notify(ErrorMessage or "Unable to read backpack animals.")
+		return
+	end
+
+	local SoldCount = 0
+	local FailedCount = 0
+	for AnimalId, Entry in pairs(Animals) do
+		if not AutoSellRarityEnabled or IsClosing then break end
+		if type(Entry) == "table" and not Entry.Placed and not Entry.Bought then
+			local Info = Api.Economy.Get(Entry.ModelName)
+			local Rarity = Info and Info.Rarity or "Common"
+			if SelectedSellRarities[Rarity] then
+				local Success, Result = pcall(function()
+					return Api.Remotes.Invoke("Plot_SellAnimal", AnimalId)
+				end)
+				if Success and type(Result) == "table" and Result.Ok then
+					SoldCount += 1
+				else
+					FailedCount += 1
+				end
+				task.wait(0.0365)
+			end
+		end
+	end
+
+	SellRequestBusy = false
+	if SoldCount > 0 then
+		Notify("Auto Sell Rarity sold " .. SoldCount .. " animal(s).")
+	elseif FailedCount > 0 then
+		Notify("Some animals could not be sold. Check the game response.")
+	end
+end
+
+local AutoSellAllCard, AutoSellAllButton, AutoSellAllStroke = CreateSellCard(
+	"AutoSellAllCard", "Auto Sell All", "Automatically sell all eligible animals in your backpack.", 70
+)
+
+local SellAllNowButton = Instance.new("TextButton")
+SellAllNowButton.Name = "SellAllNowButton"
+SellAllNowButton.Size = UDim2.new(1, -8, 0, 38)
+SellAllNowButton.Position = UDim2.fromOffset(0, 162)
+SellAllNowButton.BackgroundColor3 = Color3.fromRGB(45, 145, 85)
+SellAllNowButton.Text = "SELL ALL NOW"
+SellAllNowButton.TextColor3 = Color3.new(1, 1, 1)
+SellAllNowButton.Font = Enum.Font.GothamBold
+SellAllNowButton.TextSize = 12
+SellAllNowButton.AutoButtonColor = false
+SellAllNowButton.Parent = SellPage
+Corner(SellAllNowButton, 7)
+Stroke(SellAllNowButton, Color3.fromRGB(100, 220, 145), 1)
+
+local AutoSellRarityCard, AutoSellRarityButton, AutoSellRarityStroke = CreateSellCard(
+	"AutoSellRarityCard", "Auto Sell Rarity", "Choose one or more rarities below. Placed and bought animals are skipped.", 210
+)
+
+
+local RarityToggleButton = Instance.new("TextButton")
+RarityToggleButton.Name = "RarityToggleButton"
+RarityToggleButton.Size = UDim2.new(1, -8, 0, 38)
+RarityToggleButton.Position = UDim2.fromOffset(0, 302)
+RarityToggleButton.BackgroundColor3 = Color3.fromRGB(65, 45, 95)
+RarityToggleButton.BorderSizePixel = 0
+RarityToggleButton.Text = "SELECT RARITIES     ▼"
+RarityToggleButton.TextColor3 = Color3.fromRGB(240, 230, 255)
+RarityToggleButton.Font = Enum.Font.GothamBold
+RarityToggleButton.TextSize = 12
+RarityToggleButton.AutoButtonColor = false
+RarityToggleButton.Parent = SellPage
+Corner(RarityToggleButton, 8)
+Stroke(RarityToggleButton, Purple, 1)
+
+local RarityPanel = Instance.new("ScrollingFrame")
+RarityPanel.Name = "RaritySelection"
+RarityPanel.Size = UDim2.new(1, -8, 0, 0)
+RarityPanel.Position = UDim2.fromOffset(0, 347)
+RarityPanel.BackgroundColor3 = Color3.fromRGB(29, 26, 42)
+RarityPanel.BorderSizePixel = 0
+RarityPanel.Visible = false
+RarityPanel.ClipsDescendants = true
+RarityPanel.AutomaticCanvasSize = Enum.AutomaticSize.None
+RarityPanel.CanvasSize = UDim2.new(0, 0, 0, 190)
+RarityPanel.ScrollingDirection = Enum.ScrollingDirection.Y
+RarityPanel.ScrollBarThickness = 4
+RarityPanel.ScrollBarImageColor3 = Purple
+RarityPanel.Active = true
+RarityPanel.Parent = SellPage
+Corner(RarityPanel, 9)
+Stroke(RarityPanel, Color3.fromRGB(75, 55, 100), 1)
+
+local RarityTitle = Instance.new("TextLabel")
+RarityTitle.Size = UDim2.new(1, -20, 0, 25)
+RarityTitle.Position = UDim2.fromOffset(10, 8)
+RarityTitle.BackgroundTransparency = 1
+RarityTitle.Text = "SELECT RARITIES"
+RarityTitle.TextColor3 = Color3.fromRGB(220, 205, 245)
+RarityTitle.Font = Enum.Font.GothamBold
+RarityTitle.TextSize = 12
+RarityTitle.TextXAlignment = Enum.TextXAlignment.Left
+RarityTitle.Parent = RarityPanel
+
+local SelectedRarityText = Instance.new("TextLabel")
+SelectedRarityText.Size = UDim2.new(1, -20, 0, 20)
+SelectedRarityText.Position = UDim2.fromOffset(10, 163)
+SelectedRarityText.BackgroundTransparency = 1
+SelectedRarityText.Text = "Selected: 0"
+SelectedRarityText.TextColor3 = Color3.fromRGB(160, 150, 180)
+SelectedRarityText.Font = Enum.Font.Gotham
+SelectedRarityText.TextSize = 10
+SelectedRarityText.TextXAlignment = Enum.TextXAlignment.Left
+SelectedRarityText.Parent = RarityPanel
+
+local RarityPanelOpen = false
+local RarityPanelTween = nil
+local RarityPanelHeight = 190
+
+local function ToggleRarityPanel()
+	if IsClosing then return end
+
+	RarityPanelOpen = not RarityPanelOpen
+
+	if RarityPanelTween then
+		RarityPanelTween:Cancel()
+		RarityPanelTween = nil
+	end
+
+	if RarityPanelOpen then
+		RarityPanel.Visible = true
+		RarityToggleButton.Text = "SELECT RARITIES     ▲"
+
+		RarityPanelTween = Tween(
+			RarityPanel,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{Size = UDim2.new(1, -8, 0, RarityPanelHeight)}
+		)
+	else
+		RarityToggleButton.Text = "SELECT RARITIES     ▼"
+
+		RarityPanelTween = Tween(
+			RarityPanel,
+			TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+			{Size = UDim2.new(1, -8, 0, 0)}
+		)
+
+		local CurrentTween = RarityPanelTween
+
+		CurrentTween.Completed:Connect(function()
+			if not RarityPanelOpen and not IsClosing then
+				RarityPanel.Visible = false
+			end
+		end)
+	end
+end
+
+RarityToggleButton.MouseButton1Click:Connect(ToggleRarityPanel)
+
+RarityToggleButton.MouseEnter:Connect(function()
+	Tween(RarityToggleButton, FastTween, {
+		BackgroundColor3 = Color3.fromRGB(90, 60, 130)
+	})
+end)
+
+RarityToggleButton.MouseLeave:Connect(function()
+	Tween(RarityToggleButton, FastTween, {
+		BackgroundColor3 = Color3.fromRGB(65, 45, 95)
+	})
+end)
+
+local RarityButtons = {}
+local RarityOrder = {
+	["Common"] = 1,
+	["Uncommon"] = 2,
+	["Rare"] = 3,
+	["Epic"] = 4,
+	["Legendary"] = 5,
+	["Mythic"] = 6,
+	["Secret"] = 7,
+	["Divine"] = 8,
+	["Celestial"] = 9,
+	["Eternal"] = 10,
+	["Cosmic"] = 11,
+	["Supreme"] = 12,
+	["Sovereign"] = 13
+}
+
+local KnownRarities = {}
+local RarityNames = {}
+
+for Rarity in pairs(RarityOrder) do
+	KnownRarities[Rarity] = true
+	table.insert(RarityNames, Rarity)
+end
+
+local AnimalsDataModule = ReplicatedStorage:FindFirstChild("AnimalsData")
+local AnimalEconomyModule = ReplicatedStorage:FindFirstChild("Config") and ReplicatedStorage.Config:FindFirstChild("AnimalEconomy")
+
+if AnimalsDataModule and AnimalEconomyModule then
+	local DataSuccess, AnimalsData = pcall(require, AnimalsDataModule)
+	local EconomySuccess, AnimalEconomy = pcall(require, AnimalEconomyModule)
+
+	if DataSuccess and EconomySuccess and type(AnimalsData) == "table" and type(AnimalEconomy) == "table" and type(AnimalEconomy.Get) == "function" then
+		for _, Group in pairs(AnimalsData) do
+			if type(Group) == "table" then
+				for _, Animal in ipairs(Group) do
+					if type(Animal) == "table" and type(Animal.ModelName) == "string" then
+						local Info = AnimalEconomy.Get(Animal.ModelName)
+						local Rarity = Info and Info.Rarity
+
+						if type(Rarity) == "string" and not KnownRarities[Rarity] then
+							KnownRarities[Rarity] = true
+							table.insert(RarityNames, Rarity)
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
+table.sort(RarityNames, function(A, B)
+	local AOrder = RarityOrder[A] or 999
+	local BOrder = RarityOrder[B] or 999
+
+	if AOrder == BOrder then
+		return A < B
+	end
+
+	return AOrder < BOrder
+end)
+
+RarityPanelHeight = math.max(190, 75 + math.ceil(#RarityNames / 2) * 30)
+RarityPanel.CanvasSize = UDim2.new(0, 0, 0, RarityPanelHeight)
+SelectedRarityText.Position = UDim2.fromOffset(10, RarityPanelHeight - 27)
+
+local function UpdateSelectedRarityText()
+	local Count = 0
+	for _, Enabled in pairs(SelectedSellRarities) do
+		if Enabled then
+			Count += 1
+		end
+	end
+	SelectedRarityText.Text = "Selected: " .. Count
+end
+
+for Index, Rarity in ipairs(RarityNames) do
+	local Column = (Index - 1) % 2
+	local Row = math.floor((Index - 1) / 2)
+	local Button = Instance.new("TextButton")
+	Button.Name = Rarity .. "RarityButton"
+	Button.Size = UDim2.new(0.5, -16, 0, 28)
+	Button.Position = UDim2.new(Column * 0.5, 10, 0, 40 + Row * 30)
+	Button.BackgroundColor3 = Color3.fromRGB(55, 48, 70)
+	Button.Text = Rarity
+	Button.TextColor3 = Color3.fromRGB(195, 185, 215)
+	Button.Font = Enum.Font.GothamMedium
+	Button.TextSize = 10
+	Button.AutoButtonColor = false
+	Button.Parent = RarityPanel
+	Corner(Button, 6)
+	RarityButtons[Rarity] = Button
+
+	Button.MouseButton1Click:Connect(function()
+		if IsClosing then return end
+		SelectedSellRarities[Rarity] = not SelectedSellRarities[Rarity]
+		local Enabled = SelectedSellRarities[Rarity]
+		Tween(Button, FastTween, {
+			BackgroundColor3 = Enabled and Color3.fromRGB(70, 125, 90) or Color3.fromRGB(55, 48, 70)
+		})
+		Button.TextColor3 = Enabled and Color3.fromRGB(235, 255, 240) or Color3.fromRGB(195, 185, 215)
+		UpdateSelectedRarityText()
+	end)
+end
+
+AutoSellAllButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+	AutoSellAllToken += 1
+	local Token = AutoSellAllToken
+	AutoSellAllEnabled = not AutoSellAllEnabled
+	SetSellToggle(AutoSellAllButton, AutoSellAllStroke, AutoSellAllEnabled)
+
+	if AutoSellAllEnabled then
+		Notify("Auto Sell All enabled!")
+		task.spawn(function()
+			while AutoSellAllEnabled and AutoSellAllToken == Token and not IsClosing do
+				if not SellRequestBusy then
+					SellRequestBusy = true
+					local Success, Result = InvokeSellAll()
+					SellRequestBusy = false
+					if not Success and Result ~= "Nothing" then
+						warn("[MINI HUB] Auto Sell All:", Result)
+					end
+				end
+				task.wait(2)
+			end
+		end)
+	else
+		Notify("Auto Sell All disabled!")
+	end
+end)
+
+SellAllNowButton.MouseButton1Click:Connect(function()
+	if IsClosing or SellRequestBusy then return end
+	SellRequestBusy = true
+	local Success, Result = InvokeSellAll()
+	SellRequestBusy = false
+	if Success then
+		Notify("Sell All request completed!")
+	else
+		Notify("Sell All failed: " .. tostring(Result))
+	end
+end)
+
+AutoSellRarityButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+	AutoSellRarityToken += 1
+	local Token = AutoSellRarityToken
+	AutoSellRarityEnabled = not AutoSellRarityEnabled
+	SetSellToggle(AutoSellRarityButton, AutoSellRarityStroke, AutoSellRarityEnabled)
+
+	if AutoSellRarityEnabled then
+		local HasSelection = false
+		for _, Enabled in pairs(SelectedSellRarities) do
+			if Enabled then
+				HasSelection = true
+				break
+			end
+		end
+		if not HasSelection then
+			AutoSellRarityEnabled = false
+			SetSellToggle(AutoSellRarityButton, AutoSellRarityStroke, false)
+			Notify("Select at least one rarity first!")
+			return
+		end
+
+		Notify("Auto Sell Rarity enabled!")
+		task.spawn(function()
+			while AutoSellRarityEnabled and AutoSellRarityToken == Token and not IsClosing do
+				if not SellRequestBusy then
+					SellSelectedRarities()
+				end
+				task.wait(2)
+			end
+		end)
+	else
+		Notify("Auto Sell Rarity disabled!")
+	end
+end)
 
 local MainTitle = Instance.new("TextLabel")
 MainTitle.Size = UDim2.new(1, 0, 0, 32)
@@ -575,7 +1185,7 @@ MainDescription.TextXAlignment = Enum.TextXAlignment.Left
 MainDescription.Parent = MainPage
 
 local AutoCard = Instance.new("Frame")
-AutoCard.Size = UDim2.new(1, 0, 0, 85)
+AutoCard.Size = UDim2.new(1, -8, 0, 85)
 AutoCard.Position = UDim2.fromOffset(0, 70)
 AutoCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
 AutoCard.BorderSizePixel = 0
@@ -691,7 +1301,7 @@ AutoPerfectButton.MouseLeave:Connect(function()
 end)
 
 local AutoThrowCard = Instance.new("Frame")
-AutoThrowCard.Size = UDim2.new(1, 0, 0, 85)
+AutoThrowCard.Size = UDim2.new(1, -8, 0, 85)
 AutoThrowCard.Position = UDim2.fromOffset(0, 165)
 AutoThrowCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
 AutoThrowCard.BorderSizePixel = 0
@@ -749,7 +1359,7 @@ local AutoThrowStroke = Stroke(AutoThrowButton, Color3.fromRGB(230, 100, 110), 1
 
 local AutoTrainingCard = Instance.new("Frame")
 AutoTrainingCard.Name = "AutoTrainingCard"
-AutoTrainingCard.Size = UDim2.new(1, 0, 0, 85)
+AutoTrainingCard.Size = UDim2.new(1, -8, 0, 85)
 AutoTrainingCard.Position = UDim2.fromOffset(0, 260)
 AutoTrainingCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
 AutoTrainingCard.BorderSizePixel = 0
@@ -805,6 +1415,242 @@ Corner(AutoTrainingButton, 7)
 
 local AutoTrainingStroke = Stroke(AutoTrainingButton, Color3.fromRGB(230, 100, 110), 1)
 
+local AutoUpgradeTrainingCard = Instance.new("Frame")
+AutoUpgradeTrainingCard.Name = "AutoUpgradeTrainingCard"
+AutoUpgradeTrainingCard.Size = UDim2.new(1, -8, 0, 85)
+AutoUpgradeTrainingCard.Position = UDim2.fromOffset(0, 70)
+AutoUpgradeTrainingCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoUpgradeTrainingCard.BorderSizePixel = 0
+AutoUpgradeTrainingCard.Parent = BuyUpgradePage
+Corner(AutoUpgradeTrainingCard, 9)
+Stroke(AutoUpgradeTrainingCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoUpgradeTrainingIcon = Instance.new("TextLabel")
+AutoUpgradeTrainingIcon.Size = UDim2.fromOffset(42, 42)
+AutoUpgradeTrainingIcon.Position = UDim2.fromOffset(12, 21)
+AutoUpgradeTrainingIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoUpgradeTrainingIcon.Text = "⬆️"
+AutoUpgradeTrainingIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoUpgradeTrainingIcon.Font = Enum.Font.GothamBold
+AutoUpgradeTrainingIcon.TextSize = 22
+AutoUpgradeTrainingIcon.Parent = AutoUpgradeTrainingCard
+Corner(AutoUpgradeTrainingIcon, 9)
+
+local AutoUpgradeTrainingTitle = Instance.new("TextLabel")
+AutoUpgradeTrainingTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoUpgradeTrainingTitle.Position = UDim2.fromOffset(65, 17)
+AutoUpgradeTrainingTitle.BackgroundTransparency = 1
+AutoUpgradeTrainingTitle.Text = "Auto Upgrade Training"
+AutoUpgradeTrainingTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoUpgradeTrainingTitle.Font = Enum.Font.GothamBold
+AutoUpgradeTrainingTitle.TextSize = 14
+AutoUpgradeTrainingTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoUpgradeTrainingTitle.Parent = AutoUpgradeTrainingCard
+
+local AutoUpgradeTrainingDescription = Instance.new("TextLabel")
+AutoUpgradeTrainingDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoUpgradeTrainingDescription.Position = UDim2.fromOffset(65, 40)
+AutoUpgradeTrainingDescription.BackgroundTransparency = 1
+AutoUpgradeTrainingDescription.Text = "Automatically auto upgrade training"
+AutoUpgradeTrainingDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoUpgradeTrainingDescription.Font = Enum.Font.Gotham
+AutoUpgradeTrainingDescription.TextSize = 10
+AutoUpgradeTrainingDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoUpgradeTrainingDescription.Parent = AutoUpgradeTrainingCard
+
+local AutoUpgradeTrainingButton = Instance.new("TextButton")
+AutoUpgradeTrainingButton.Name = "AutoUpgradeTrainingToggle"
+AutoUpgradeTrainingButton.Size = UDim2.fromOffset(105, 35)
+AutoUpgradeTrainingButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoUpgradeTrainingButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoUpgradeTrainingButton.Text = "OFF"
+AutoUpgradeTrainingButton.TextColor3 = Color3.new(1, 1, 1)
+AutoUpgradeTrainingButton.Font = Enum.Font.GothamBold
+AutoUpgradeTrainingButton.TextSize = 12
+AutoUpgradeTrainingButton.AutoButtonColor = false
+AutoUpgradeTrainingButton.Parent = AutoUpgradeTrainingCard
+Corner(AutoUpgradeTrainingButton, 7)
+
+local AutoUpgradeTrainingStroke = Stroke(AutoUpgradeTrainingButton, Color3.fromRGB(230, 100, 110), 1)
+
+local AutoBuyFoodCard = Instance.new("Frame")
+AutoBuyFoodCard.Name = "AutoBuyFoodCard"
+AutoBuyFoodCard.Size = UDim2.new(1, -8, 0, 85)
+AutoBuyFoodCard.Position = UDim2.fromOffset(0, 165)
+AutoBuyFoodCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoBuyFoodCard.BorderSizePixel = 0
+AutoBuyFoodCard.Parent = BuyUpgradePage
+Corner(AutoBuyFoodCard, 9)
+Stroke(AutoBuyFoodCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoBuyFoodIcon = Instance.new("TextLabel")
+AutoBuyFoodIcon.Size = UDim2.fromOffset(42, 42)
+AutoBuyFoodIcon.Position = UDim2.fromOffset(12, 21)
+AutoBuyFoodIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoBuyFoodIcon.Text = "🍖"
+AutoBuyFoodIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoBuyFoodIcon.Font = Enum.Font.GothamBold
+AutoBuyFoodIcon.TextSize = 22
+AutoBuyFoodIcon.Parent = AutoBuyFoodCard
+Corner(AutoBuyFoodIcon, 9)
+
+local AutoBuyFoodTitle = Instance.new("TextLabel")
+AutoBuyFoodTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoBuyFoodTitle.Position = UDim2.fromOffset(65, 17)
+AutoBuyFoodTitle.BackgroundTransparency = 1
+AutoBuyFoodTitle.Text = "Auto Buy Food"
+AutoBuyFoodTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoBuyFoodTitle.Font = Enum.Font.GothamBold
+AutoBuyFoodTitle.TextSize = 14
+AutoBuyFoodTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoBuyFoodTitle.Parent = AutoBuyFoodCard
+
+local AutoBuyFoodDescription = Instance.new("TextLabel")
+AutoBuyFoodDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoBuyFoodDescription.Position = UDim2.fromOffset(65, 40)
+AutoBuyFoodDescription.BackgroundTransparency = 1
+AutoBuyFoodDescription.Text = "Automatically auto buy food"
+AutoBuyFoodDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoBuyFoodDescription.Font = Enum.Font.Gotham
+AutoBuyFoodDescription.TextSize = 10
+AutoBuyFoodDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoBuyFoodDescription.Parent = AutoBuyFoodCard
+
+local AutoBuyFoodButton = Instance.new("TextButton")
+AutoBuyFoodButton.Name = "AutoBuyFoodToggle"
+AutoBuyFoodButton.Size = UDim2.fromOffset(105, 35)
+AutoBuyFoodButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoBuyFoodButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoBuyFoodButton.Text = "OFF"
+AutoBuyFoodButton.TextColor3 = Color3.new(1, 1, 1)
+AutoBuyFoodButton.Font = Enum.Font.GothamBold
+AutoBuyFoodButton.TextSize = 12
+AutoBuyFoodButton.AutoButtonColor = false
+AutoBuyFoodButton.Parent = AutoBuyFoodCard
+Corner(AutoBuyFoodButton, 7)
+
+local AutoBuyFoodStroke = Stroke(AutoBuyFoodButton, Color3.fromRGB(230, 100, 110), 1)
+
+local function SetAutoBuyFoodState(State)
+	AutoBuyFoodEnabled = State
+	AutoBuyFoodButton.Text = State and "ON" or "OFF"
+
+	Tween(AutoBuyFoodButton, SmoothTween, {BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)})
+	Tween(AutoBuyFoodStroke, SmoothTween, {Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)})
+end
+
+local AutoEquipBestCard = Instance.new("Frame")
+AutoEquipBestCard.Name = "AutoEquipBestCard"
+AutoEquipBestCard.Size = UDim2.new(1, -8, 0, 85)
+AutoEquipBestCard.Position = UDim2.fromOffset(0, 355)
+AutoEquipBestCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoEquipBestCard.BorderSizePixel = 0
+AutoEquipBestCard.Parent = MainPage
+Corner(AutoEquipBestCard, 9)
+Stroke(AutoEquipBestCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoEquipBestIcon = Instance.new("TextLabel")
+AutoEquipBestIcon.Size = UDim2.fromOffset(42, 42)
+AutoEquipBestIcon.Position = UDim2.fromOffset(12, 21)
+AutoEquipBestIcon.BackgroundColor3 = Color3.fromRGB(65, 45, 90)
+AutoEquipBestIcon.Text = "✨"
+AutoEquipBestIcon.TextColor3 = Color3.fromRGB(220, 175, 255)
+AutoEquipBestIcon.Font = Enum.Font.GothamBold
+AutoEquipBestIcon.TextSize = 22
+AutoEquipBestIcon.Parent = AutoEquipBestCard
+Corner(AutoEquipBestIcon, 9)
+
+local AutoEquipBestTitle = Instance.new("TextLabel")
+AutoEquipBestTitle.Size = UDim2.new(1, -165, 0, 24)
+AutoEquipBestTitle.Position = UDim2.fromOffset(65, 17)
+AutoEquipBestTitle.BackgroundTransparency = 1
+AutoEquipBestTitle.Text = "Auto Equip Best"
+AutoEquipBestTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoEquipBestTitle.Font = Enum.Font.GothamBold
+AutoEquipBestTitle.TextSize = 14
+AutoEquipBestTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoEquipBestTitle.Parent = AutoEquipBestCard
+
+local AutoEquipBestDescription = Instance.new("TextLabel")
+AutoEquipBestDescription.Size = UDim2.new(1, -165, 0, 20)
+AutoEquipBestDescription.Position = UDim2.fromOffset(65, 40)
+AutoEquipBestDescription.BackgroundTransparency = 1
+AutoEquipBestDescription.Text = "Auto Equip Best Every 3 Seconds"
+AutoEquipBestDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoEquipBestDescription.Font = Enum.Font.Gotham
+AutoEquipBestDescription.TextSize = 10
+AutoEquipBestDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoEquipBestDescription.Parent = AutoEquipBestCard
+
+local AutoEquipBestButton = Instance.new("TextButton")
+AutoEquipBestButton.Name = "AutoEquipBestToggle"
+AutoEquipBestButton.Size = UDim2.fromOffset(105, 35)
+AutoEquipBestButton.Position = UDim2.new(1, -117, 0.5, -17)
+AutoEquipBestButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
+AutoEquipBestButton.Text = "OFF"
+AutoEquipBestButton.TextColor3 = Color3.new(1, 1, 1)
+AutoEquipBestButton.Font = Enum.Font.GothamBold
+AutoEquipBestButton.TextSize = 12
+AutoEquipBestButton.AutoButtonColor = false
+AutoEquipBestButton.Parent = AutoEquipBestCard
+Corner(AutoEquipBestButton, 7)
+
+local AutoEquipBestStroke = Stroke(AutoEquipBestButton, Color3.fromRGB(230, 100, 110), 1)
+
+local function SetAutoEquipBestState(State)
+	AutoEquipBestEnabled = State
+	AutoEquipBestButton.Text = State and "ON" or "OFF"
+
+	Tween(AutoEquipBestButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(AutoEquipBestStroke, SmoothTween, {
+		Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+AutoEquipBestButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	AutoEquipBestToken += 1
+	local Token = AutoEquipBestToken
+
+	if AutoEquipBestEnabled then
+		SetAutoEquipBestState(false)
+		Notify("Auto Equip Best has been disabled!")
+		return
+	end
+
+	SetAutoEquipBestState(true)
+	Notify("Auto Equip Best has been enabled!")
+
+	task.spawn(function()
+		local ReplicatedStorage = game:GetService("ReplicatedStorage")
+		local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+		local EquipBestRemote = Remotes:WaitForChild("Plot_EquipBest")
+
+		while AutoEquipBestEnabled and AutoEquipBestToken == Token and not IsClosing do
+			pcall(function()
+				EquipBestRemote:InvokeServer()
+			end)
+
+			task.wait(3)
+		end
+	end)
+end)
+
+AutoEquipBestButton.MouseEnter:Connect(function()
+	Tween(AutoEquipBestButton, FastTween, {
+		BackgroundColor3 = AutoEquipBestEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)
+	})
+end)
+
+AutoEquipBestButton.MouseLeave:Connect(function()
+	Tween(AutoEquipBestButton, FastTween, {
+		BackgroundColor3 = AutoEquipBestEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+end)
 
 local function CreateSettingsCard(Name, PositionY)
 	local Card = Instance.new("Frame")
@@ -863,6 +1709,7 @@ local AntiAFKCard = CreateSettingsCard("AntiAFKCard", 220)
 CreateSettingsText(AntiAFKCard, "Anti AFK")
 
 local AntiAFKButton = CreateSettingsButton(AntiAFKCard, "OFF")
+AntiAFKButton.BackgroundColor3 = Color3.fromRGB(180, 55, 65)
 
 local CurrentTheme = nil
 local ThemeMenuOpen = false
@@ -916,9 +1763,14 @@ local function UpdateFrameColors(ThemeColor)
 		AutoCard,
 		AutoThrowCard,
 		AutoTrainingCard,
+		AutoUpgradeTrainingCard,
+		AutoBuyFoodCard,
 		KeybindCard,
 		ColorCard,
-		AntiAFKCard
+		AntiAFKCard,
+		AutoEquipBestCard,
+		AutoSellAllCard,
+		AutoSellRarityCard,
 	}
 
 	for _, Card in ipairs(Cards) do
@@ -1267,8 +2119,8 @@ end
 
 local function ClickTapBonus(Button)
 	if not Button or not Button.Parent then return false end
-	if not Button:IsA("GuiButton") then return false end
-	if not Button.Visible or not Button.Active then return false end
+	if not Button:IsA("GuiObject") then return false end
+	if not Button.Visible then return false end
 
 	local Position = Button.AbsolutePosition
 	local Size = Button.AbsoluteSize
@@ -1288,12 +2140,399 @@ local function ClickTapBonus(Button)
 	end
 
 	return pcall(function()
+		VirtualInputManager:SendMouseMoveEvent(CenterX, CenterY, game)
 		VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
 		task.wait(0.025)
 		VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
 	end)
 end
 
+local Suffixes = {
+	[1] = "K",
+	[2] = "M",
+	[3] = "B",
+	[4] = "T",
+	[5] = "Qa",
+	[6] = "Qi",
+	[7] = "Sx",
+	[8] = "Sp",
+	[9] = "Oc",
+	[10] = "No",
+	[11] = "Dc",
+	[12] = "Ud",
+	[13] = "Dd",
+	[14] = "Td",
+	[15] = "Qad",
+	[16] = "Qid",
+	[17] = "Sxd",
+	[18] = "Spd",
+	[19] = "Ocd",
+	[20] = "Nod",
+	[21] = "Vg",
+	[22] = "Uvg",
+	[23] = "Dvg",
+	[24] = "Tvg",
+	[25] = "Qavg",
+	[26] = "Qivg",
+	[27] = "Sxvg",
+	[28] = "Spvg",
+	[29] = "Ocvg",
+	[30] = "Novg",
+	[31] = "Tg"
+}
+
+local function ParseFormattedNumber(Text)
+	if not Text then return nil end
+
+	Text = tostring(Text):gsub("[,%$%s]+", ""):lower()
+
+	local NumStr, Suffix = Text:match("^([%-]?%d*%.?%d+)([a-z]*)")
+	local Number = tonumber(NumStr)
+
+	if not Number then return nil end
+
+	if Suffix ~= "" then
+		for Power, Name in ipairs(Suffixes) do
+			if Name:lower() == Suffix then
+				return Number * (1000 ^ Power)
+			end
+		end
+	end
+
+	return Number
+end
+
+local function GetPlayerMoney()
+	local Leaderstats = LocalPlayer:FindFirstChild("leaderstats")
+	if not Leaderstats then return nil end
+
+	local Money = Leaderstats:FindFirstChild("Money")
+	if not Money then return nil end
+
+	if Money:IsA("ValueBase") then
+		return ParseFormattedNumber(Money.Value)
+	end
+
+	return ParseFormattedNumber(Money.Text)
+end
+
+local function GetFoodsConfig()
+	local ConfigFolder = ReplicatedStorage:FindFirstChild("Config")
+	local FoodsConfigModule = ConfigFolder and ConfigFolder:FindFirstChild("FoodsConfig")
+
+	if not FoodsConfigModule then return nil end
+
+	local Success, FoodsConfig = pcall(require, FoodsConfigModule)
+	if Success then
+		return FoodsConfig
+	end
+
+	return nil
+end
+
+local function GetNextAffordableFood()
+	local FoodsConfig = GetFoodsConfig()
+	local Money = GetPlayerMoney()
+
+	if not FoodsConfig or not Money then return nil end
+
+	for Index = 1, FoodsConfig.CountAll() do
+		local Food = FoodsConfig.GetAny(Index)
+
+		if Food and Food.Price and Money >= Food.Price then
+			return Food, Index
+		end
+	end
+
+	return nil
+end
+
+local function GetUpgradeButtonPart()
+	local TrainingSpot = GetTrainingSpot()
+	if not TrainingSpot then return nil end
+
+	local UpgradeButton = TrainingSpot:FindFirstChild("UpgradeButton")
+	if UpgradeButton and UpgradeButton:IsA("BasePart") then
+		return UpgradeButton
+	end
+
+	return nil
+end
+
+local function GetUpgradePriceLabel()
+	local UpgradeButton = GetUpgradeButtonPart()
+	if not UpgradeButton then return nil end
+
+	local PriceAnchor = UpgradeButton:FindFirstChild("PriceAnchor", true)
+	local PriceBillboard = PriceAnchor and PriceAnchor:FindFirstChild("PriceBillboard")
+	local Holder = PriceBillboard and PriceBillboard:FindFirstChild("Holder")
+	local PriceHolder = Holder and Holder:FindFirstChild("PriceHolder")
+	local Price = PriceHolder and PriceHolder:FindFirstChild("Price")
+
+	if Price and Price:IsA("TextLabel") then
+		return Price
+	end
+
+	return nil
+end
+
+local function GetUpgradePrice()
+	local PriceLabel = GetUpgradePriceLabel()
+	if not PriceLabel then return nil, nil end
+
+	return ParseFormattedNumber(PriceLabel.Text), PriceLabel.Text
+end
+
+local function TeleportToUpgradeButton()
+	local TargetPart = GetUpgradeButtonPart()
+	if not TargetPart then return false end
+
+	local Character = LocalPlayer.Character
+	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+
+	if not Character or not Humanoid or not Root then return false end
+
+	local HeightOffset = TargetPart.Size.Y / 2 + Humanoid.HipHeight + Root.Size.Y / 2 + 2
+	local TargetPosition = TargetPart.Position + Vector3.new(0, HeightOffset, 0)
+
+	local LookVector = Root.CFrame.LookVector
+	local TargetCFrame = CFrame.lookAt(
+		TargetPosition,
+		TargetPosition + Vector3.new(LookVector.X, 0, LookVector.Z)
+	)
+
+	Root.AssemblyLinearVelocity = Vector3.zero
+	Root.AssemblyAngularVelocity = Vector3.zero
+	Character:PivotTo(TargetCFrame)
+
+	return true
+end
+
+local function ClickTrainingUpgradeButton()
+	local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+	if not TrainingSequence or not TrainingSequence.Enabled then
+		return false
+	end
+
+	local Button = TrainingSequence:FindFirstChild("Button", true)
+	if not Button or not Button.Visible or not Button.Active then
+		return false
+	end
+
+	local Position = Button.AbsolutePosition
+	local Size = Button.AbsoluteSize
+
+	if Size.X <= 1 or Size.Y <= 1 then
+		return false
+	end
+
+	local Inset = game:GetService("GuiService"):GetGuiInset()
+	local X = Position.X + Size.X / 2
+	local Y = Position.Y + Size.Y / 2 + Inset.Y
+
+	local Success = pcall(function()
+		VirtualInputManager:SendMouseMoveEvent(X, Y, game)
+		VirtualInputManager:SendMouseButtonEvent(X, Y, 0, true, game, 1)
+		task.wait(0.125)
+		VirtualInputManager:SendMouseButtonEvent(X, Y, 0, false, game, 1)
+	end)
+
+	return Success
+end
+
+local function TriggerUpgradePrompt()
+	local UpgradeButton = GetUpgradeButtonPart()
+	if not UpgradeButton then return false end
+
+	local Prompt = UpgradeButton:FindFirstChildWhichIsA("ProximityPrompt", true)
+	if not Prompt or not Prompt.Enabled then return false end
+
+	if typeof(fireproximityprompt) == "function" then
+		return pcall(function()
+			fireproximityprompt(Prompt)
+		end)
+	end
+
+	return pcall(function()
+		VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+		task.wait(0.025)
+		VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+	end)
+end
+
+local function SetAutoUpgradeTrainingState(State)
+	AutoUpgradeTrainingEnabled = State
+	AutoUpgradeTrainingButton.Text = State and "ON" or "OFF"
+
+	Tween(AutoUpgradeTrainingButton, SmoothTween, {
+		BackgroundColor3 = State and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+
+	Tween(AutoUpgradeTrainingStroke, SmoothTween, {
+		Color = State and Color3.fromRGB(100, 230, 145) or Color3.fromRGB(230, 100, 110)
+	})
+end
+
+AutoUpgradeTrainingButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	if AutoUpgradeTrainingEnabled then
+		AutoUpgradeTrainingToken += 1
+		AutoActionsPausedByUpgrade = false
+		SetAutoUpgradeTrainingState(false)
+		Notify("Auto Upgrade Training has been disabled!")
+		return
+	end
+
+	if AutoEnabled then
+		Notify("Please turn off Auto Perfect before enabling Auto Upgrade Training!")
+		return
+	end
+
+	AutoUpgradeTrainingToken += 1
+	local Token = AutoUpgradeTrainingToken
+
+	SetAutoUpgradeTrainingState(true)
+	Notify("Auto Upgrade Training has been enabled!")
+
+	task.spawn(function()
+		while AutoUpgradeTrainingEnabled
+			and AutoUpgradeTrainingToken == Token
+			and not IsClosing do
+
+			local Money = GetPlayerMoney()
+			local Price = GetUpgradePrice()
+
+			if Money and Price and Money >= Price then
+				AutoActionsPausedByUpgrade = true
+
+				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
+				if ThrowSequence and ThrowSequence:IsA("ScreenGui") and ThrowSequence.Enabled then
+					task.wait(0.05)
+					continue
+				end
+
+				local Teleported = TeleportToUpgradeButton()
+				if not Teleported then
+					task.wait(0.2)
+					continue
+				end
+
+				task.wait(0.25)
+				TriggerUpgradePrompt()
+				task.wait(0.1)
+
+				local OldMoney = GetPlayerMoney()
+				local OldPrice, OldPriceText = GetUpgradePrice()
+				local LastPromptAttempt = tick()
+				local RetryStarted = tick()
+				local UpgradeSucceeded = false
+
+				while AutoUpgradeTrainingEnabled
+					and AutoUpgradeTrainingToken == Token
+					and not IsClosing do
+
+					local NewPrice, NewPriceText = GetUpgradePrice()
+					local NewMoney = GetPlayerMoney()
+
+					if NewPrice and OldPrice and (
+						NewPrice ~= OldPrice or NewPriceText ~= OldPriceText
+						) then
+						UpgradeSucceeded = true
+						break
+					end
+
+					if NewMoney and OldMoney and NewMoney < OldMoney then
+						UpgradeSucceeded = true
+						break
+					end
+
+					local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+					if TrainingSequence and TrainingSequence.Enabled then
+						ClickTrainingUpgradeButton()
+					elseif tick() - LastPromptAttempt >= 0.3 then
+						TriggerUpgradePrompt()
+						LastPromptAttempt = tick()
+					end
+
+					if tick() - RetryStarted >= 3 then
+						break
+					end
+
+					task.wait(0.05)
+				end
+
+				if not AutoUpgradeTrainingEnabled or AutoUpgradeTrainingToken ~= Token then
+					break
+				end
+
+				if UpgradeSucceeded then
+					AutoActionsPausedByUpgrade = false
+					task.wait(0.3)
+				else
+					task.wait(0.2)
+					TeleportToUpgradeButton()
+					task.wait(0.3)
+				end
+			else
+				AutoActionsPausedByUpgrade = false
+				task.wait(0.15)
+			end
+		end
+
+		AutoActionsPausedByUpgrade = false
+	end)
+end)
+
+AutoUpgradeTrainingButton.MouseEnter:Connect(function()
+	Tween(AutoUpgradeTrainingButton, FastTween, {
+		BackgroundColor3 = AutoUpgradeTrainingEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)
+	})
+end)
+
+AutoUpgradeTrainingButton.MouseLeave:Connect(function()
+	Tween(AutoUpgradeTrainingButton, FastTween, {
+		BackgroundColor3 = AutoUpgradeTrainingEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)
+	})
+end)
+
+AutoBuyFoodButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+
+	if AutoBuyFoodEnabled then
+		AutoBuyFoodToken += 1
+		SetAutoBuyFoodState(false)
+		Notify("Auto Buy Food has been disabled!")
+		return
+	end
+
+	AutoBuyFoodToken += 1
+	local Token = AutoBuyFoodToken
+
+	SetAutoBuyFoodState(true)
+	Notify("Auto Buy Food has been enabled!")
+
+	task.spawn(function()
+		while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
+			local Food, Index = GetNextAffordableFood()
+
+			if Food then
+				print("[Auto Buy Food] Affordable Food:", Food.Name or Food.ModelName, "Price:", Food.Price, "Index:", Index)
+			end
+
+			task.wait(1)
+		end
+	end)
+end)
+
+AutoBuyFoodButton.MouseEnter:Connect(function()
+	Tween(AutoBuyFoodButton, FastTween, {BackgroundColor3 = AutoBuyFoodEnabled and Color3.fromRGB(60, 180, 110) or Color3.fromRGB(210, 70, 80)})
+end)
+
+AutoBuyFoodButton.MouseLeave:Connect(function()
+	Tween(AutoBuyFoodButton, FastTween, {BackgroundColor3 = AutoBuyFoodEnabled and Color3.fromRGB(45, 155, 90) or Color3.fromRGB(180, 55, 65)})
+end)
 
 AutoTrainingButton.MouseButton1Click:Connect(function()
 	if IsClosing then return end
@@ -1328,15 +2567,28 @@ AutoTrainingButton.MouseButton1Click:Connect(function()
 		Notify("Auto Training has been enabled!")
 
 		task.spawn(function()
-			while AutoTrainingEnabled and AutoTrainingToken == Token and not IsClosing do
+			while AutoTrainingEnabled
+				and AutoTrainingToken == Token
+				and not IsClosing do
+
+				if AutoActionsPausedByUpgrade then
+					task.wait(0.05)
+					continue
+				end
+
+				local Money = GetPlayerMoney()
+				local Price = GetUpgradePrice()
+
+				if AutoUpgradeTrainingEnabled and Money and Price and Money >= Price then
+					task.wait(0.05)
+					continue
+				end
+
 				if IsTrainingActive() then
 					local TapBonus = AutoTapBonus()
-
 					if TapBonus then
-						task.wait(0.12)
 						ClickTapBonus(TapBonus)
 					end
-
 					task.wait(0.05)
 				else
 					TeleportToTrainingSpot()
@@ -1377,7 +2629,7 @@ end)
 local SettingsTitle = Instance.new("TextLabel")
 SettingsTitle.Size = UDim2.new(1, 0, 0, 32)
 SettingsTitle.BackgroundTransparency = 1
-SettingsTitle.Text = "⚙  Settings"
+SettingsTitle.Text = "⚙️  Settings"
 SettingsTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
 SettingsTitle.Font = Enum.Font.GothamBold
 SettingsTitle.TextSize = 19
@@ -1394,6 +2646,27 @@ SettingsDescription.Font = Enum.Font.Gotham
 SettingsDescription.TextSize = 12
 SettingsDescription.TextXAlignment = Enum.TextXAlignment.Left
 SettingsDescription.Parent = SettingsPage
+
+local BuyUpgradeTitle = Instance.new("TextLabel")
+BuyUpgradeTitle.Size = UDim2.new(1, 0, 0, 32)
+BuyUpgradeTitle.BackgroundTransparency = 1
+BuyUpgradeTitle.Text = "🛒  Buy/Upgrade"
+BuyUpgradeTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+BuyUpgradeTitle.Font = Enum.Font.GothamBold
+BuyUpgradeTitle.TextSize = 19
+BuyUpgradeTitle.TextXAlignment = Enum.TextXAlignment.Left
+BuyUpgradeTitle.Parent = BuyUpgradePage
+
+local BuyUpgradeDescription = Instance.new("TextLabel")
+BuyUpgradeDescription.Size = UDim2.new(1, 0, 0, 25)
+BuyUpgradeDescription.Position = UDim2.fromOffset(0, 35)
+BuyUpgradeDescription.BackgroundTransparency = 1
+BuyUpgradeDescription.Text = "Automatically purchase and upgrade features."
+BuyUpgradeDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+BuyUpgradeDescription.Font = Enum.Font.Gotham
+BuyUpgradeDescription.TextSize = 12
+BuyUpgradeDescription.TextXAlignment = Enum.TextXAlignment.Left
+BuyUpgradeDescription.Parent = BuyUpgradePage
 
 local SettingsCard = Instance.new("Frame")
 SettingsCard.Size = UDim2.new(1, 0, 0, 65)
@@ -1420,7 +2693,7 @@ SettingsCard.Visible = false
 local InfoTitle = Instance.new("TextLabel")
 InfoTitle.Size = UDim2.new(1, 0, 0, 32)
 InfoTitle.BackgroundTransparency = 1
-InfoTitle.Text = "✧  Information"
+InfoTitle.Text = "ℹ️  Information"
 InfoTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
 InfoTitle.Font = Enum.Font.GothamBold
 InfoTitle.TextSize = 19
@@ -1451,7 +2724,7 @@ local InfoText = Instance.new("TextLabel")
 InfoText.Size = UDim2.new(1, -24, 0, 45)
 InfoText.Position = UDim2.fromOffset(12, 10)
 InfoText.BackgroundTransparency = 1
-InfoText.Text = "MINI HUB\nVersion 1.0"
+InfoText.Text = "MINI HUB\nVersion 2.0"
 InfoText.TextColor3 = Color3.fromRGB(195, 180, 215)
 InfoText.Font = Enum.Font.Gotham
 InfoText.TextSize = 12
@@ -1463,7 +2736,7 @@ CreditLabel.Name = "CreditLabel"
 CreditLabel.Size = UDim2.new(1, -24, 0, 35)
 CreditLabel.Position = UDim2.fromOffset(12, 62)
 CreditLabel.BackgroundColor3 = Color3.fromRGB(65, 40, 90)
-CreditLabel.Text = "✦  CREDIT: NP20K12  ✦"
+CreditLabel.Text = "✪  CREDIT: NP20K12  ✪"
 CreditLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 CreditLabel.Font = Enum.Font.GothamBold
 CreditLabel.TextSize = 13
@@ -1493,6 +2766,12 @@ CloseButton.MouseLeave:Connect(function()
 	Tween(CloseButton, FastTween, {BackgroundColor3 = Color3.fromRGB(180, 55, 75)})
 end)
 
+CloseButton.MouseButton1Click:Connect(function()
+	if not WarningFrame.Visible then
+		openWarning()
+	end
+end)
+
 MinimizeButton.MouseButton1Click:Connect(function()
 	if IsAnimating or IsClosing then return end
 
@@ -1517,7 +2796,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
 end)
 
 local function ClickScreen()
-	if IsClosing or (not AutoEnabled and not AutoThrowEnabled) then return end
+	if IsClosing or AutoActionsPausedByUpgrade or (not AutoEnabled and not AutoThrowEnabled) then return end
 
 	local Camera = workspace.CurrentCamera
 	if not Camera then return end
@@ -1560,6 +2839,19 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 		local LastClick = 0
 
 		while AutoThrowEnabled and AutoThrowToken == Token and not IsClosing do
+			if AutoActionsPausedByUpgrade then
+				task.wait(0.05)
+				continue
+			end
+
+			local Money = GetPlayerMoney()
+			local Price = GetUpgradePrice()
+
+			if AutoUpgradeTrainingEnabled and Money and Price and Money >= Price then
+				task.wait(0.05)
+				continue
+			end
+
 			local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
 
 			if ThrowSequence and ThrowSequence.Enabled then
@@ -1573,7 +2865,7 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 						end
 					end
 
-					if HasVisibleLabel and AutoThrowEnabled and AutoThrowToken == Token then
+					if HasVisibleLabel and AutoThrowEnabled and AutoThrowToken == Token and not AutoActionsPausedByUpgrade then
 						ClickScreen()
 						LastClick = tick()
 					end
@@ -1588,13 +2880,12 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 		end
 	end)
 end)
-
 local RenderConnection
 local PreviousMarkerTop = nil
 local WasAboveTop = false
 
 RenderConnection = RunService.RenderStepped:Connect(function()
-	if (not AutoEnabled and not AutoThrowEnabled) or IsClosing then
+	if (not AutoEnabled and not AutoThrowEnabled) or IsClosing or AutoActionsPausedByUpgrade then
 		PreviousMarkerTop = nil
 		WasAboveTop = false
 		return
@@ -1639,7 +2930,7 @@ RenderConnection = RunService.RenderStepped:Connect(function()
 		LastClickTime = tick()
 
 		task.spawn(function()
-			if not IsClosing and (AutoEnabled or AutoThrowEnabled) then
+			if not IsClosing and not AutoActionsPausedByUpgrade and (AutoEnabled or AutoThrowEnabled) then
 				ClickScreen()
 			end
 		end)
@@ -1655,7 +2946,12 @@ end)
 local RainbowTween = TweenService:Create(BorderGradient, TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360})
 RainbowTween:Play()
 
-CloseButton.MouseButton1Click:Connect(function()
+NoButton.MouseButton1Click:Connect(function()
+	closeWarning()
+end)
+
+
+YesButton.MouseButton1Click:Connect(function()
 	if IsClosing then return end
 
 	IsClosing = true
@@ -1664,6 +2960,17 @@ CloseButton.MouseButton1Click:Connect(function()
 	AutoThrowToken += 1
 	AutoTrainingEnabled = false
 	AutoTrainingToken += 1
+	AutoUpgradeTrainingEnabled = false
+	AutoUpgradeTrainingToken += 1
+	AutoActionsPausedByUpgrade = false
+	AutoEquipBestEnabled = false
+	AutoEquipBestToken += 1
+	AutoSellAllEnabled = false
+	AutoSellAllToken += 1
+	AutoSellRarityEnabled = false
+	AutoSellRarityToken += 1
+	AutoBuyFoodEnabled = false
+	AutoBuyFoodToken += 1
 
 	if RenderConnection then
 		RenderConnection:Disconnect()
@@ -1672,8 +2979,30 @@ CloseButton.MouseButton1Click:Connect(function()
 
 	RainbowTween:Cancel()
 
-	local CloseAnimation = Tween(MainScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0.75})
-	Tween(MainFrame, TweenInfo.new(0.25), {GroupTransparency = 1})
+	local CloseInfo = TweenInfo.new(
+		0.3,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.In
+	)
+
+	local FadeInfo = TweenInfo.new(
+		0.3,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	)
+
+	local CloseAnimation = Tween(MainScale, CloseInfo, {
+		Scale = 0.6
+	})
+
+	Tween(MainFrame, FadeInfo, {
+		GroupTransparency = 1
+	})
+
+	Tween(WarningFrame, FadeInfo, {
+		BackgroundTransparency = 1
+	})
+
 	CloseAnimation.Completed:Wait()
 
 	ScreenGui:Destroy()
@@ -1690,6 +3019,21 @@ local function StopAllFeatures()
 	AutoThrowToken += 1
 	AutoTrainingEnabled = false
 	AutoTrainingToken += 1
+	AutoUpgradeTrainingEnabled = false
+	AutoUpgradeTrainingToken += 1
+	AutoActionsPausedByUpgrade = false
+	SetAutoUpgradeTrainingState(false)
+	AutoEquipBestEnabled = false
+	AutoEquipBestToken += 1
+	AutoSellAllEnabled = false
+	AutoSellAllToken += 1
+	AutoSellRarityEnabled = false
+	AutoSellRarityToken += 1
+	AutoBuyFoodEnabled = false
+	AutoBuyFoodToken += 1
+	SetAutoBuyFoodState(false)
+	SetSellToggle(AutoSellAllButton, AutoSellAllStroke, false)
+	SetSellToggle(AutoSellRarityButton, AutoSellRarityStroke, false)
 	SetAutoThrowState(false)
 
 	AutoPerfectButton.Text = "OFF"
