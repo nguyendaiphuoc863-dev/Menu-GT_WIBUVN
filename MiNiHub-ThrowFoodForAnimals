@@ -941,7 +941,6 @@ local RarityPanelOpen = false
 local RarityPanelTween = nil
 local RarityPanelHeight = 190
 
-
 local function ToggleRarityPanel()
 	if IsClosing then return end
 
@@ -1065,7 +1064,7 @@ local function UpdateSelectedRarityText()
 			Count += 1
 		end
 	end
-	
+
 	SelectedRarityText.Text = "Selected: " .. Count
 end
 
@@ -2482,43 +2481,52 @@ local function IsFoodAffordable(Button)
 end
 
 
+
 local function GetAffordableFoodCard()
-	local AffordableFoods = {}
+	local AvailableFoods = {}
 
 	for _, Food in ipairs(GetFoodCards()) do
-		if IsFoodAffordable(Food.Button) then
-			local Price = GetFoodPrice(Food.Button)
+		local Button = Food.Button
+
+		if Button and Button.Parent and Button.BackgroundColor3 == FOOD_READY_COLOR then
+			local Price = GetFoodPrice(Button)
 
 			if Price then
-				table.insert(AffordableFoods, {
+				table.insert(AvailableFoods, {
 					Frame = Food.Frame,
-					Button = Food.Button,
+					Button = Button,
 					Price = Price
 				})
 			end
 		end
 	end
 
-	if #AffordableFoods == 0 then
+	if #AvailableFoods == 0 then
 		return nil
 	end
 
 	if AutoBuyFoodMode == "Food Best" then
-		table.sort(AffordableFoods, function(A, B)
+		table.sort(AvailableFoods, function(A, B)
 			return A.Price > B.Price
 		end)
 
-		return AffordableFoods[1]
+		local BestFood = AvailableFoods[1]
+		local Money = GetPlayerMoney()
+
+		if not Money or Money < BestFood.Price then
+			return nil
+		end
+
+		return BestFood
 	end
-	
-	table.sort(AffordableFoods, function(A, B)
-		local NumberA = tonumber(A.Frame.Name:match("%d+")) or 0
-		local NumberB = tonumber(B.Frame.Name:match("%d+")) or 0
 
-		return NumberA < NumberB
-	end)
+	for _, Food in ipairs(AvailableFoods) do
+		if IsFoodAffordable(Food.Button) then
+			return Food
+		end
+	end
 
-	return AffordableFoods[1]
+	return nil
 end
 
 local function TeleportToFoodShop()
