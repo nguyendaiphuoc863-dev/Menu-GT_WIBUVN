@@ -42,8 +42,13 @@ local AutoSellRarityEnabled = false
 local AutoSellRarityToken = 0
 local AutoBuyFoodEnabled = false
 local AutoBuyFoodToken = 0
+local AutoFoodBusy = false
+local AutoFoodPreviousTraining = false
+local AutoFoodPreviousThrow = false
+local AutoBuyFoodMode = "In Order"
 local SellRequestBusy = false
 local SelectedSellRarities = {}
+local PageScrollTweens = {}
 local ALLOWED_PLACE_ID = 120219252362013
 local NormalSize = IsMobile and UDim2.fromOffset(370, 400) or UDim2.fromOffset(560, 370)
 local MinimizedSize = IsMobile and UDim2.fromOffset(370, 55) or UDim2.fromOffset(560, 55)
@@ -667,6 +672,18 @@ local SellPage = CreateTab("Sell", "💰")
 local SettingsPage = CreateTab("Settings", "⚙️")
 local InfoPage = CreateTab("Info", "ℹ️")
 
+local function TweenPageToBottom(Page)
+	if not Page or not Page:IsA("ScrollingFrame") then return end
+
+	if PageScrollTweens[Page] then PageScrollTweens[Page]:Cancel() end
+
+	local MaxY = math.max(0, Page.AbsoluteCanvasSize.Y - Page.AbsoluteSize.Y)
+	local Target = Vector2.new(Page.CanvasPosition.X, MaxY)
+
+	PageScrollTweens[Page] = TweenService:Create(Page, TweenInfo.new(0.0635, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {CanvasPosition = Target})
+	PageScrollTweens[Page]:Play()
+end
+
 local SellTitle = Instance.new("TextLabel")
 SellTitle.Size = UDim2.new(1, 0, 0, 32)
 SellTitle.BackgroundTransparency = 1
@@ -849,10 +866,7 @@ local function SellSelectedRarities()
 	end
 end
 
-local AutoSellAllCard, AutoSellAllButton, AutoSellAllStroke = CreateSellCard(
-	"AutoSellAllCard", "Auto Sell All", "Automatically sell all eligible animals in your backpack.", 70
-)
-
+local AutoSellAllCard, AutoSellAllButton, AutoSellAllStroke = CreateSellCard("AutoSellAllCard", "Auto Sell All", "Automatically sell all eligible animals in your backpack.", 70)
 local SellAllNowButton = Instance.new("TextButton")
 SellAllNowButton.Name = "SellAllNowButton"
 SellAllNowButton.Size = UDim2.new(1, -8, 0, 38)
@@ -867,11 +881,7 @@ SellAllNowButton.Parent = SellPage
 Corner(SellAllNowButton, 7)
 Stroke(SellAllNowButton, Color3.fromRGB(100, 220, 145), 1)
 
-local AutoSellRarityCard, AutoSellRarityButton, AutoSellRarityStroke = CreateSellCard(
-	"AutoSellRarityCard", "Auto Sell Rarity", "Choose one or more rarities below. Placed and bought animals are skipped.", 210
-)
-
-
+local AutoSellRarityCard, AutoSellRarityButton, AutoSellRarityStroke = CreateSellCard("AutoSellRarityCard", "Auto Sell Rarity", "Choose one or more rarities below. Placed and bought animals are skipped.", 210)
 local RarityToggleButton = Instance.new("TextButton")
 RarityToggleButton.Name = "RarityToggleButton"
 RarityToggleButton.Size = UDim2.new(1, -8, 0, 38)
@@ -931,6 +941,7 @@ local RarityPanelOpen = false
 local RarityPanelTween = nil
 local RarityPanelHeight = 190
 
+
 local function ToggleRarityPanel()
 	if IsClosing then return end
 
@@ -941,28 +952,30 @@ local function ToggleRarityPanel()
 		RarityPanelTween = nil
 	end
 
+
 	if RarityPanelOpen then
 		RarityPanel.Visible = true
 		RarityToggleButton.Text = "SELECT RARITIES     ▲"
 
-		RarityPanelTween = Tween(
-			RarityPanel,
-			TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-			{Size = UDim2.new(1, -8, 0, RarityPanelHeight)}
-		)
+		RarityPanelTween = TweenService:Create(RarityPanel, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, -8, 0, RarityPanelHeight)})
+
+		local CurrentTween = RarityPanelTween
+		CurrentTween.Completed:Connect(function(PlaybackState)
+			if PlaybackState == Enum.PlaybackState.Completed and RarityPanelOpen and not IsClosing then
+				TweenPageToBottom(SellPage)
+			end
+		end)
+
+		RarityPanelTween:Play()
 	else
 		RarityToggleButton.Text = "SELECT RARITIES     ▼"
 
-		RarityPanelTween = Tween(
-			RarityPanel,
-			TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
-			{Size = UDim2.new(1, -8, 0, 0)}
-		)
+		RarityPanelTween = TweenService:Create(RarityPanel, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Size = UDim2.new(1, -8, 0, 0)})
+		RarityPanelTween:Play()
 
 		local CurrentTween = RarityPanelTween
-
-		CurrentTween.Completed:Connect(function()
-			if not RarityPanelOpen and not IsClosing then
+		CurrentTween.Completed:Connect(function(PlaybackState)
+			if PlaybackState == Enum.PlaybackState.Completed and not RarityPanelOpen and not IsClosing then
 				RarityPanel.Visible = false
 			end
 		end)
@@ -972,15 +985,11 @@ end
 RarityToggleButton.MouseButton1Click:Connect(ToggleRarityPanel)
 
 RarityToggleButton.MouseEnter:Connect(function()
-	Tween(RarityToggleButton, FastTween, {
-		BackgroundColor3 = Color3.fromRGB(90, 60, 130)
-	})
+	Tween(RarityToggleButton, FastTween, {BackgroundColor3 = Color3.fromRGB(90, 60, 130)})
 end)
 
 RarityToggleButton.MouseLeave:Connect(function()
-	Tween(RarityToggleButton, FastTween, {
-		BackgroundColor3 = Color3.fromRGB(65, 45, 95)
-	})
+	Tween(RarityToggleButton, FastTween, {BackgroundColor3 = Color3.fromRGB(65, 45, 95)})
 end)
 
 local RarityButtons = {}
@@ -1056,6 +1065,7 @@ local function UpdateSelectedRarityText()
 			Count += 1
 		end
 	end
+	
 	SelectedRarityText.Text = "Selected: " .. Count
 end
 
@@ -1531,6 +1541,141 @@ Corner(AutoBuyFoodButton, 7)
 
 local AutoBuyFoodStroke = Stroke(AutoBuyFoodButton, Color3.fromRGB(230, 100, 110), 1)
 
+local AutoBuyFoodModeCard = Instance.new("Frame")
+AutoBuyFoodModeCard.Name = "AutoBuyFoodModeCard"
+AutoBuyFoodModeCard.Size = UDim2.new(1, -8, 0, 70)
+AutoBuyFoodModeCard.Position = UDim2.fromOffset(0, 260)
+AutoBuyFoodModeCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+AutoBuyFoodModeCard.BorderSizePixel = 0
+AutoBuyFoodModeCard.Parent = BuyUpgradePage
+Corner(AutoBuyFoodModeCard, 9)
+Stroke(AutoBuyFoodModeCard, Color3.fromRGB(75, 55, 100), 1)
+
+local AutoBuyFoodModeTitle = Instance.new("TextLabel")
+AutoBuyFoodModeTitle.Size = UDim2.new(1, -145, 0, 24)
+AutoBuyFoodModeTitle.Position = UDim2.fromOffset(14, 10)
+AutoBuyFoodModeTitle.BackgroundTransparency = 1
+AutoBuyFoodModeTitle.Text = "Auto Buy Food Mode"
+AutoBuyFoodModeTitle.TextColor3 = Color3.fromRGB(240, 230, 255)
+AutoBuyFoodModeTitle.Font = Enum.Font.GothamBold
+AutoBuyFoodModeTitle.TextSize = 13
+AutoBuyFoodModeTitle.TextXAlignment = Enum.TextXAlignment.Left
+AutoBuyFoodModeTitle.Parent = AutoBuyFoodModeCard
+
+local AutoBuyFoodModeDescription = Instance.new("TextLabel")
+AutoBuyFoodModeDescription.Size = UDim2.new(1, -145, 0, 20)
+AutoBuyFoodModeDescription.Position = UDim2.fromOffset(14, 34)
+AutoBuyFoodModeDescription.BackgroundTransparency = 1
+AutoBuyFoodModeDescription.Text = "Choose food purchase order"
+AutoBuyFoodModeDescription.TextColor3 = Color3.fromRGB(145, 135, 160)
+AutoBuyFoodModeDescription.Font = Enum.Font.Gotham
+AutoBuyFoodModeDescription.TextSize = 10
+AutoBuyFoodModeDescription.TextXAlignment = Enum.TextXAlignment.Left
+AutoBuyFoodModeDescription.Parent = AutoBuyFoodModeCard
+
+local AutoBuyFoodModeButton = Instance.new("TextButton")
+AutoBuyFoodModeButton.Name = "AutoBuyFoodModeButton"
+AutoBuyFoodModeButton.Size = UDim2.fromOffset(115, 34)
+AutoBuyFoodModeButton.Position = UDim2.new(1, -127, 0.5, -17)
+AutoBuyFoodModeButton.BackgroundColor3 = Color3.fromRGB(75, 55, 110)
+AutoBuyFoodModeButton.Text = "In Order"
+AutoBuyFoodModeButton.TextColor3 = Color3.new(1, 1, 1)
+AutoBuyFoodModeButton.Font = Enum.Font.GothamBold
+AutoBuyFoodModeButton.TextSize = 11
+AutoBuyFoodModeButton.AutoButtonColor = false
+AutoBuyFoodModeButton.Parent = AutoBuyFoodModeCard
+Corner(AutoBuyFoodModeButton, 7)
+Stroke(AutoBuyFoodModeButton, Color3.fromRGB(145, 100, 210), 1)
+
+local AutoBuyFoodModePopup = Instance.new("Frame")
+AutoBuyFoodModePopup.Name = "AutoBuyFoodModePopup"
+AutoBuyFoodModePopup.Size = UDim2.new(1, -8, 0, 0)
+AutoBuyFoodModePopup.Position = UDim2.fromOffset(0, 338)
+AutoBuyFoodModePopup.BackgroundColor3 = Color3.fromRGB(28, 25, 42)
+AutoBuyFoodModePopup.BorderSizePixel = 0
+AutoBuyFoodModePopup.Visible = false
+AutoBuyFoodModePopup.ZIndex = 5
+AutoBuyFoodModePopup.Parent = BuyUpgradePage
+Corner(AutoBuyFoodModePopup, 9)
+Stroke(AutoBuyFoodModePopup, Color3.fromRGB(100, 75, 145), 1)
+
+local function CreateFoodModeOption(Name, PositionY)
+	local Option = Instance.new("TextButton")
+	Option.Name = Name:gsub("%s+", "") .. "Option"
+	Option.Size = UDim2.new(1, -16, 0, 32)
+	Option.Position = UDim2.fromOffset(8, PositionY)
+	Option.BackgroundColor3 = Color3.fromRGB(55, 45, 75)
+	Option.Text = Name
+	Option.TextColor3 = Color3.fromRGB(240, 230, 255)
+	Option.Font = Enum.Font.GothamBold
+	Option.TextSize = 12
+	Option.AutoButtonColor = false
+	Option.ZIndex = 6
+	Option.Parent = AutoBuyFoodModePopup
+	Corner(Option, 6)
+
+	return Option
+end
+
+local InOrderOption = CreateFoodModeOption("In Order", 7)
+local FoodBestOption = CreateFoodModeOption("Food Best", 48)
+
+local AutoBuyFoodModeTween = nil
+local AutoBuyFoodModeOpen = false
+
+local function ToggleAutoBuyFoodMode(State)
+	AutoBuyFoodModeOpen = State
+
+	if AutoBuyFoodModeTween then AutoBuyFoodModeTween:Cancel() end
+
+
+	if State then
+		AutoBuyFoodModePopup.Visible = true
+		AutoBuyFoodModeTween = TweenService:Create(AutoBuyFoodModePopup, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(1, -8, 0, 88)})
+
+		local CurrentTween = AutoBuyFoodModeTween
+		CurrentTween.Completed:Connect(function(PlaybackState)
+			if PlaybackState == Enum.PlaybackState.Completed and AutoBuyFoodModeOpen and not IsClosing then
+				TweenPageToBottom(BuyUpgradePage)
+			end
+		end)
+
+		AutoBuyFoodModeTween:Play()
+	else
+		AutoBuyFoodModeTween = TweenService:Create(AutoBuyFoodModePopup, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Size = UDim2.new(1, -8, 0, 0)})
+		AutoBuyFoodModeTween:Play()
+
+		local CurrentTween = AutoBuyFoodModeTween
+		CurrentTween.Completed:Connect(function()
+			if not AutoBuyFoodModeOpen then AutoBuyFoodModePopup.Visible = false end
+		end)
+	end
+end
+
+local function SetAutoBuyFoodMode(Mode)
+	AutoBuyFoodMode = Mode
+	AutoBuyFoodModeButton.Text = Mode
+	InOrderOption.BackgroundColor3 = Mode == "In Order" and Color3.fromRGB(65, 125, 85) or Color3.fromRGB(55, 45, 75)
+	FoodBestOption.BackgroundColor3 = Mode == "Food Best" and Color3.fromRGB(65, 125, 85) or Color3.fromRGB(55, 45, 75)
+	ToggleAutoBuyFoodMode(false)
+	print("[Auto Buy Food] Mode changed to:", Mode)
+end
+
+AutoBuyFoodModeButton.MouseButton1Click:Connect(function()
+	if IsClosing then return end
+	ToggleAutoBuyFoodMode(not AutoBuyFoodModeOpen)
+end)
+
+InOrderOption.MouseButton1Click:Connect(function()
+	SetAutoBuyFoodMode("In Order")
+end)
+
+FoodBestOption.MouseButton1Click:Connect(function()
+	SetAutoBuyFoodMode("Food Best")
+end)
+
+SetAutoBuyFoodMode("In Order")
+
 local function SetAutoBuyFoodState(State)
 	AutoBuyFoodEnabled = State
 	AutoBuyFoodButton.Text = State and "ON" or "OFF"
@@ -1771,6 +1916,8 @@ local function UpdateFrameColors(ThemeColor)
 		AutoEquipBestCard,
 		AutoSellAllCard,
 		AutoSellRarityCard,
+		AutoBuyFoodCard,
+		AutoBuyFoodModeCard,
 	}
 
 	for _, Card in ipairs(Cards) do
@@ -2216,6 +2363,400 @@ local function GetPlayerMoney()
 	return ParseFormattedNumber(Money.Text)
 end
 
+
+local FOOD_READY_COLOR = Color3.fromRGB(255, 220, 90)
+local FOOD_GREEN_COLOR = Color3.fromRGB(152, 246, 72)
+local FOOD_GRAY_COLOR = Color3.fromRGB(150, 150, 160)
+local FOOD_RED_COLOR = Color3.fromRGB(250, 75, 75)
+
+local function GetFoodShopWorld()
+	local Props = workspace:FindFirstChild("LocalPlotProps")
+	if not Props then return nil end
+
+	local Shop = Props:FindFirstChild("FoodShop")
+	if not Shop then return nil end
+
+	local ZonePad = Shop:FindFirstChild("ZonePad")
+	if not ZonePad or not ZonePad:IsA("BasePart") then
+		return nil
+	end
+
+	return Shop, ZonePad
+end
+
+local function GetFoodShopGui()
+	local ShopGui = PlayerGui:FindFirstChild("FoodShop")
+	if not ShopGui then return nil end
+
+	local Main = ShopGui:FindFirstChild("Main")
+	if not Main then return nil end
+
+	local Panel = Main:FindFirstChild("Panel")
+	if not Panel then return nil end
+
+	local Body = Panel:FindFirstChild("Body")
+	if not Body then return nil end
+
+	local CardsScroll = Body:FindFirstChild("CardsScroll")
+	if not CardsScroll or not CardsScroll:IsA("ScrollingFrame") then
+		return nil
+	end
+
+	return ShopGui, Panel, CardsScroll
+end
+
+local function GetFoodCloseButton()
+	local ShopGui = PlayerGui:FindFirstChild("FoodShop")
+	if not ShopGui then return nil end
+
+	local Panel = ShopGui:FindFirstChild("Panel", true)
+	if not Panel then return nil end
+
+	local Header = Panel:FindFirstChild("Header")
+	if not Header then return nil end
+
+	local CloseButton = Header:FindFirstChild("CloseButton")
+
+	if CloseButton and CloseButton:IsA("GuiButton") then
+		return CloseButton
+	end
+
+	return nil
+end
+
+local function GetFoodCards()
+	local _, _, CardsScroll = GetFoodShopGui()
+	if not CardsScroll then return {} end
+
+	local Foods = {}
+
+	for _, Frame in ipairs(CardsScroll:GetChildren()) do
+		if Frame:IsA("Frame") and Frame.Name:match("^Food%d+$") then
+			local ActionButton = Frame:FindFirstChild("ActionButton", true)
+
+			if ActionButton and ActionButton:IsA("GuiButton") then
+				table.insert(Foods, {
+					Frame = Frame,
+					Button = ActionButton
+				})
+			end
+		end
+	end
+
+	table.sort(Foods, function(A, B)
+		local NumberA = tonumber(A.Frame.Name:match("%d+")) or 0
+		local NumberB = tonumber(B.Frame.Name:match("%d+")) or 0
+		return NumberA < NumberB
+	end)
+
+	return Foods
+end
+
+local function GetFoodPrice(Button)
+	if not Button then return nil end
+
+	local Label = Button:FindFirstChild("Label", true)
+
+	if not Label or not Label:IsA("TextLabel") then
+		return nil
+	end
+
+	return ParseFormattedNumber(Label.Text), Label.Text
+end
+
+local function IsFoodAffordable(Button)
+	if not Button or not Button.Parent then return false end
+
+	if Button.BackgroundColor3 ~= FOOD_READY_COLOR then
+		return false
+	end
+
+	local Price = GetFoodPrice(Button)
+	local Money = GetPlayerMoney()
+
+	if not Price or not Money then
+		return false
+	end
+
+	return Money >= Price
+end
+
+
+local function GetAffordableFoodCard()
+	local AffordableFoods = {}
+
+	for _, Food in ipairs(GetFoodCards()) do
+		if IsFoodAffordable(Food.Button) then
+			local Price = GetFoodPrice(Food.Button)
+
+			if Price then
+				table.insert(AffordableFoods, {
+					Frame = Food.Frame,
+					Button = Food.Button,
+					Price = Price
+				})
+			end
+		end
+	end
+
+	if #AffordableFoods == 0 then
+		return nil
+	end
+
+	if AutoBuyFoodMode == "Food Best" then
+		table.sort(AffordableFoods, function(A, B)
+			return A.Price > B.Price
+		end)
+
+		return AffordableFoods[1]
+	end
+	
+	table.sort(AffordableFoods, function(A, B)
+		local NumberA = tonumber(A.Frame.Name:match("%d+")) or 0
+		local NumberB = tonumber(B.Frame.Name:match("%d+")) or 0
+
+		return NumberA < NumberB
+	end)
+
+	return AffordableFoods[1]
+end
+
+local function TeleportToFoodShop()
+	local _, ZonePad = GetFoodShopWorld()
+	if not ZonePad then return false end
+
+	local Character = LocalPlayer.Character
+	local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+	local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+
+	if not Character or not Humanoid or not Root then
+		return false
+	end
+
+	local HeightOffset =
+		ZonePad.Size.Y / 2 +
+		Humanoid.HipHeight +
+		Root.Size.Y / 2 + 2
+
+	local TargetPosition =
+		ZonePad.Position + Vector3.new(0, HeightOffset, 0)
+
+	Root.AssemblyLinearVelocity = Vector3.zero
+	Root.AssemblyAngularVelocity = Vector3.zero
+
+	Character:PivotTo(CFrame.new(TargetPosition))
+
+	return true
+end
+
+local function ScrollToFoodButton(Button)
+	local _, _, CardsScroll = GetFoodShopGui()
+
+	if not CardsScroll or not Button then
+		return false
+	end
+
+	local CurrentX = CardsScroll.CanvasPosition.X
+
+	local ButtonCenter =
+		Button.AbsolutePosition.X + Button.AbsoluteSize.X / 2
+
+	local ScrollCenter =
+		CardsScroll.AbsolutePosition.X + CardsScroll.AbsoluteSize.X / 2
+
+	local TargetX = math.clamp(
+		CurrentX + ButtonCenter - ScrollCenter,
+		0,
+		math.max(
+			0,
+			CardsScroll.AbsoluteCanvasSize.X - CardsScroll.AbsoluteSize.X
+		)
+	)
+
+	if math.abs(TargetX - CurrentX) > 2 then
+		local Direction = TargetX > CurrentX and "Right" or "Left"
+		print("[Auto Buy Food] Scrolling:", Direction)
+
+		local TweenScroll = TweenService:Create(
+			CardsScroll,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{
+				CanvasPosition = Vector2.new(
+					TargetX,
+					CardsScroll.CanvasPosition.Y
+				)
+			}
+		)
+
+		TweenScroll:Play()
+		TweenScroll.Completed:Wait()
+	end
+
+	return true
+end
+
+
+local function SpamFoodButton(Button)
+	if not Button or not Button.Parent then
+		warn("[Auto Buy Food] Button not found!")
+		return false
+	end
+
+	local ShopGui = PlayerGui:FindFirstChild("FoodShop")
+
+	if not ShopGui or not ShopGui.Enabled then
+		warn("[Auto Buy Food] FoodShop is not enabled!")
+		return false
+	end
+
+	for i = 1, 3 do
+		if not AutoBuyFoodEnabled or IsClosing then
+			return false
+		end
+
+		if not Button.Parent or not Button.Visible or not Button.Active then
+			warn("[Auto Buy Food] Button is not clickable!")
+			return false
+		end
+
+		if not IsFoodAffordable(Button) then
+			warn("[Auto Buy Food] Food is no longer affordable!")
+			return false
+		end
+
+		local Position = Button.AbsolutePosition
+		local Size = Button.AbsoluteSize
+
+		if Size.X <= 1 or Size.Y <= 1 then
+			warn("[Auto Buy Food] Invalid button size!")
+			return false
+		end
+
+		local Inset = game:GetService("GuiService"):GetGuiInset()
+
+		local X = Position.X + Size.X / 2
+		local Y = Position.Y + Size.Y / 2 + Inset.Y
+
+		local Success, Error = pcall(function()
+			VirtualInputManager:SendMouseMoveEvent(X, Y, game)
+
+			VirtualInputManager:SendMouseButtonEvent(
+				X, Y, 0, true, game, 1
+			)
+
+			task.wait(0.115)
+
+			VirtualInputManager:SendMouseButtonEvent(
+				X, Y, 0, false, game, 1
+			)
+		end)
+
+		if not Success then
+			warn("[Auto Buy Food] Click error:", Error)
+			return false
+		end
+
+		print("[Auto Buy Food] Click ActionButton:", i, "/ 3")
+
+		task.wait(0.2)
+	end
+
+	return true
+end
+
+
+local function CloseFoodShop()
+	local ShopGui = PlayerGui:FindFirstChild("FoodShop")
+	if not ShopGui then
+		warn("[Auto Buy Food] FoodShop not found!")
+		return false
+	end
+
+	local CloseButton = ShopGui:FindFirstChild("CloseButton", true)
+
+	if not CloseButton then
+		warn("[Auto Buy Food] CloseButton not found!")
+		return false
+	end
+
+	if not CloseButton:IsA("GuiButton") then
+		warn("[Auto Buy Food] CloseButton is not a GuiButton!")
+		return false
+	end
+
+	for i = 1, 3 do
+		if not CloseButton.Parent or not CloseButton.Visible then
+			break
+		end
+
+		local Position = CloseButton.AbsolutePosition
+		local Size = CloseButton.AbsoluteSize
+
+		if Size.X <= 1 or Size.Y <= 1 then
+			warn("[Auto Buy Food] Invalid CloseButton size!")
+			return false
+		end
+
+		local Inset = game:GetService("GuiService"):GetGuiInset()
+		local X = Position.X + Size.X / 2
+		local Y = Position.Y + Size.Y / 2 + Inset.Y
+
+		local Success, Error = pcall(function()
+			VirtualInputManager:SendMouseMoveEvent(X, Y, game)
+			VirtualInputManager:SendMouseButtonEvent(X, Y, 0, true, game, 1)
+			task.wait(0.115)
+			VirtualInputManager:SendMouseButtonEvent(X, Y, 0, false, game, 1)
+		end)
+
+		if not Success then
+			warn("[Auto Buy Food] Close click error:", Error)
+			return false
+		end
+
+		print("[Auto Buy Food] Click CloseButton:", i, "/ 3")
+		task.wait(0.2)
+	end
+
+	return true
+end
+
+local function WaitForFoodShopOpen(Token)
+	local ShopGui = PlayerGui:WaitForChild("FoodShop", 5)
+
+	if not ShopGui then return false end
+
+	local StartTime = tick()
+
+	while AutoBuyFoodEnabled
+		and AutoBuyFoodToken == Token
+		and not IsClosing do
+
+		if ShopGui.Enabled then
+			return true
+		end
+
+		if tick() - StartTime >= 8 then
+			return false
+		end
+
+		task.wait(0.1)
+	end
+
+	return false
+end
+
+local function SetFoodPauseVisual(State)
+	if AutoFoodPreviousTraining then
+		AutoTrainingButton.Text = State and "PAUSED" or "ON"
+		AutoTrainingButton.BackgroundColor3 = State and Color3.fromRGB(180, 110, 45) or Color3.fromRGB(45, 155, 90)
+	end
+
+	if AutoFoodPreviousThrow then
+		AutoThrowButton.Text = State and "PAUSED" or "ON"
+		AutoThrowButton.BackgroundColor3 = State and Color3.fromRGB(180, 110, 45) or Color3.fromRGB(45, 155, 90)
+	end
+end
+
 local function GetFoodsConfig()
 	local ConfigFolder = ReplicatedStorage:FindFirstChild("Config")
 	local FoodsConfigModule = ConfigFolder and ConfigFolder:FindFirstChild("FoodsConfig")
@@ -2401,6 +2942,11 @@ AutoUpgradeTrainingButton.MouseButton1Click:Connect(function()
 			and AutoUpgradeTrainingToken == Token
 			and not IsClosing do
 
+			if AutoFoodBusy then
+				task.wait(0.05)
+				continue
+			end
+
 			local Money = GetPlayerMoney()
 			local Price = GetUpgradePrice()
 
@@ -2497,13 +3043,36 @@ AutoUpgradeTrainingButton.MouseLeave:Connect(function()
 	})
 end)
 
+
 AutoBuyFoodButton.MouseButton1Click:Connect(function()
 	if IsClosing then return end
 
 	if AutoBuyFoodEnabled then
 		AutoBuyFoodToken += 1
+		AutoFoodBusy = false
+
+		SetFoodPauseVisual(false)
 		SetAutoBuyFoodState(false)
+
 		Notify("Auto Buy Food has been disabled!")
+		return
+	end
+
+	local WorldShop, ZonePad = GetFoodShopWorld()
+	local ShopGui = PlayerGui:FindFirstChild("FoodShop")
+
+	if not WorldShop or not ZonePad then
+		Notify("FoodShop ZonePad not found!")
+		return
+	end
+
+	if not ShopGui then
+		Notify("FoodShop GUI not found!")
+		return
+	end
+
+	if not GetFoodShopGui() then
+		Notify("FoodShop CardsScroll not found!")
 		return
 	end
 
@@ -2514,15 +3083,138 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 	Notify("Auto Buy Food has been enabled!")
 
 	task.spawn(function()
-		while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
-			local Food, Index = GetNextAffordableFood()
+		while AutoBuyFoodEnabled
+			and AutoBuyFoodToken == Token
+			and not IsClosing do
 
-			if Food then
-				print("[Auto Buy Food] Affordable Food:", Food.Name or Food.ModelName, "Price:", Food.Price, "Index:", Index)
+			local Food = GetAffordableFoodCard()
+
+			if not Food then
+				task.wait(0.4)
+				continue
 			end
 
-			task.wait(1)
+			if AutoTrainingEnabled and AutoUpgradeTrainingEnabled
+				and not AutoThrowEnabled then
+
+				local Money = GetPlayerMoney()
+				local UpgradePrice = GetUpgradePrice()
+
+				if Money and UpgradePrice and Money >= UpgradePrice then
+					task.wait(0.2)
+					continue
+				end
+			end
+
+			AutoFoodPreviousTraining = AutoTrainingEnabled
+			AutoFoodPreviousThrow = AutoThrowEnabled
+
+			AutoFoodBusy = true
+			SetFoodPauseVisual(true)
+
+			while AutoBuyFoodEnabled
+				and AutoBuyFoodToken == Token
+				and not IsClosing do
+
+				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
+
+				if not ThrowSequence or not ThrowSequence.Enabled then
+					break
+				end
+
+				task.wait(0.1)
+			end
+
+			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token then
+				break
+			end
+
+			if not TeleportToFoodShop() then
+				AutoFoodBusy = false
+				SetFoodPauseVisual(false)
+				task.wait(0.5)
+				continue
+			end
+
+			task.wait(0.3)
+
+			if not WaitForFoodShopOpen(Token) then
+				AutoFoodBusy = false
+				SetFoodPauseVisual(false)
+				task.wait(0.5)
+				continue
+			end
+
+			local BoughtAnything = false
+
+			while AutoBuyFoodEnabled
+				and AutoBuyFoodToken == Token
+				and not IsClosing do
+
+				local CurrentFood = GetAffordableFoodCard()
+
+				if not CurrentFood then
+					break
+				end
+
+				local Button = CurrentFood.Button
+
+				ScrollToFoodButton(Button)
+				task.wait(0.15)
+
+				if not Button.Parent
+					or not IsFoodAffordable(Button) then
+					task.wait(0.1)
+					continue
+				end
+
+				local Price, PriceText = GetFoodPrice(Button)
+
+				print(
+					"[Auto Buy Food] Buying:",
+					CurrentFood.Frame.Name,
+					"Price:",
+					PriceText,
+					"Money:",
+					GetPlayerMoney()
+				)
+
+				local Clicked = SpamFoodButton(Button)
+
+				if Clicked then
+					BoughtAnything = true
+					task.wait(0.4)
+				else
+					task.wait(0.2)
+				end
+			end
+
+			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token then
+				break
+			end
+
+			CloseFoodShop()
+
+			task.wait(0.115)
+
+			AutoFoodBusy = false
+			SetFoodPauseVisual(false)
+
+			if BoughtAnything then
+				print("[Auto Buy Food] Purchase cycle completed!")
+			end
+
+			AutoFoodPreviousTraining = false
+			AutoFoodPreviousThrow = false
+
+			task.wait(0.5)
 		end
+
+		AutoFoodBusy = false
+		SetFoodPauseVisual(false)
+
+		AutoFoodPreviousTraining = false
+		AutoFoodPreviousThrow = false
 	end)
 end)
 
@@ -2570,6 +3262,11 @@ AutoTrainingButton.MouseButton1Click:Connect(function()
 			while AutoTrainingEnabled
 				and AutoTrainingToken == Token
 				and not IsClosing do
+
+				if AutoFoodBusy then
+					task.wait(0.05)
+					continue
+				end
 
 				if AutoActionsPausedByUpgrade then
 					task.wait(0.05)
@@ -2839,6 +3536,11 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 		local LastClick = 0
 
 		while AutoThrowEnabled and AutoThrowToken == Token and not IsClosing do
+			if AutoFoodBusy then
+				task.wait(0.05)
+				continue
+			end
+
 			if AutoActionsPausedByUpgrade then
 				task.wait(0.05)
 				continue
@@ -3067,10 +3769,7 @@ task.spawn(function()
 
 		LoadingPercent.Text = Progress .. "%"
 		LoadingStatus.Text = Progress < 100 and "Loading components..." or "Loading complete!"
-
-		Tween(LoadingFill, TweenInfo.new(0.01, Enum.EasingStyle.Linear), {
-			Size = UDim2.new(Progress / 100, 0, 1, 0)
-		})
+		Tween(LoadingFill, TweenInfo.new(0.01, Enum.EasingStyle.Linear), {Size = UDim2.new(Progress / 100, 0, 1, 0)})
 
 		task.wait(0.035)
 	end
@@ -3078,9 +3777,7 @@ task.spawn(function()
 	task.wait(0.3)
 	if not ScreenGui.Parent then return end
 
-	Tween(LoadingFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-		GroupTransparency = 1
-	}).Completed:Wait()
+	Tween(LoadingFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {GroupTransparency = 1}).Completed:Wait()
 
 	if not ScreenGui.Parent then return end
 
