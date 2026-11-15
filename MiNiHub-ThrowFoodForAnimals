@@ -3088,66 +3088,56 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 	SetAutoBuyFoodState(true)
 	Notify("Auto Buy Food has been enabled!")
 
+
 	task.spawn(function()
-		while AutoBuyFoodEnabled
-			and AutoBuyFoodToken == Token
-			and not IsClosing do
-
-			local Food = GetAffordableFoodCard()
-
-			if not Food then
-				task.wait(0.4)
-				continue
-			end
-
-			if AutoTrainingEnabled and AutoUpgradeTrainingEnabled
-				and not AutoThrowEnabled then
-
-				local Money = GetPlayerMoney()
-				local UpgradePrice = GetUpgradePrice()
-
-				if Money and UpgradePrice and Money >= UpgradePrice then
-					task.wait(0.2)
-					continue
-				end
-			end
-
-			AutoFoodPreviousTraining = AutoTrainingEnabled
-			AutoFoodPreviousThrow = AutoThrowEnabled
-
-			AutoFoodBusy = true
-			SetFoodPauseVisual(true)
-
-			while AutoBuyFoodEnabled
-				and AutoBuyFoodToken == Token
-				and not IsClosing do
-
+		while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
+			while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
 				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
-
 				if not ThrowSequence or not ThrowSequence.Enabled then
 					break
 				end
-
 				task.wait(0.1)
 			end
 
 			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token then
 				break
 			end
-
+			
+			AutoFoodPreviousTraining = AutoTrainingEnabled
+			AutoFoodPreviousThrow = AutoThrowEnabled
+			AutoFoodBusy = true
+			SetFoodPauseVisual(true)
+			
 			if not TeleportToFoodShop() then
+				warn("[Auto Buy Food] Teleport failed: ZonePad, Character, Humanoid or HumanoidRootPart not found!")
 				AutoFoodBusy = false
 				SetFoodPauseVisual(false)
 				task.wait(0.5)
 				continue
 			end
 
+			print("[Auto Buy Food] Teleported to ZonePad:", GetFoodShopWorld())
+
 			task.wait(0.3)
 
 			if not WaitForFoodShopOpen(Token) then
+				warn("[Auto Buy Food] FoodShop GUI did not open after teleport!")
 				AutoFoodBusy = false
 				SetFoodPauseVisual(false)
 				task.wait(0.5)
+				continue
+			end
+			
+			local Food = GetAffordableFoodCard()
+
+			if not Food then
+				CloseFoodShop()
+				task.wait(0.115)
+				AutoFoodBusy = false
+				SetFoodPauseVisual(false)
+				AutoFoodPreviousTraining = false
+				AutoFoodPreviousThrow = false
+				task.wait(0.4)
 				continue
 			end
 
