@@ -1,3 +1,7 @@
+if game.PlaceId ~= 77900175935766 then
+    return
+end
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local VirtualInputManager = game:GetService("VirtualInputManager")
