@@ -55,7 +55,7 @@ Gui.ResetOnSpawn = false
 Gui.Parent = TargetParent
 
 local Frame = Instance.new("Frame", Gui)
-Frame.Size = UDim2.new(0, 250, 0, 145)
+Frame.Size = UDim2.new(0, 250, 0, 160)
 Frame.Position = UDim2.new(0.5, -125, 0.25, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 Frame.Active = true
@@ -73,7 +73,7 @@ Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
 
 local Toggle = Instance.new("TextButton", Frame)
 Toggle.Size = UDim2.new(0.9, 0, 0, 40)
-Toggle.Position = UDim2.new(0.05, 0, 0.3, 0)
+Toggle.Position = UDim2.new(0.05, 0, 0.26, 0)
 Toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 Toggle.Text = "Auto Write: OFF"
 Toggle.TextColor3 = Color3.new(1, 1, 1)
@@ -82,14 +82,23 @@ Toggle.TextSize = 14
 Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 6)
 
 local Info = Instance.new("TextLabel", Frame)
-Info.Size = UDim2.new(0.9, 0, 0, 35)
-Info.Position = UDim2.new(0.05, 0, 0.65, 0)
+Info.Size = UDim2.new(0.9, 0, 0, 28)
+Info.Position = UDim2.new(0.05, 0, 0.56, 0)
 Info.BackgroundTransparency = 1
 Info.Text = "Status: Waiting for turn..."
 Info.TextColor3 = Color3.fromRGB(180, 220, 255)
 Info.Font = Enum.Font.Gotham
 Info.TextSize = 11
 Info.TextWrapped = true
+
+local Credit = Instance.new("TextLabel", Frame)
+Credit.Size = UDim2.new(0.9, 0, 0, 20)
+Credit.Position = UDim2.new(0.05, 0, 0.80, 0)
+Credit.BackgroundTransparency = 1
+Credit.Text = "Credit: NP20K12"
+Credit.TextColor3 = Color3.fromRGB(140, 140, 155)
+Credit.Font = Enum.Font.GothamBold
+Credit.TextSize = 11
 
 Toggle.MouseButton1Click:Connect(function()
     AutoWrite = not AutoWrite
