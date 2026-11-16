@@ -1,0 +1,152 @@
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local TargetParent = (gethui and gethui()) or CoreGui
+
+for _, old in ipairs(TargetParent:GetChildren()) do
+    if old.Name == "SYI_CleanAutoWrite" then
+        old:Destroy()
+    end
+end
+
+local WordList = {
+    "Minigun", "Airstrike", "Tank", "Laser", "Bankai", "Time Stop", "Infinity", 
+    "Nuke", "Bomb", "Missile", "Wizard", "Sword", "Shotgun", "Rocket", "AWP",
+    "Flamethrower", "Grenade", "Dynamite", "Cannon", "Landmine", "Orbital Strike",
+    "Tactical Nuke", "Railgun", "Sniper", "Katana", "Hammer", "Bazooka", "Turret",
+    "Slenderman", "Skeleton", "Pirate", "Invisible", "Zombie", "Giant", "Angel", 
+    "Kaiju", "Mummy", "Robot", "Beast", "Dragon", "Vampire", "Ghost", "Alien",
+    "Jeff the Killer", "Monster", "Noob", "Guest 666", "Titan", "Kraken", "Demon",
+    "Clown", "Witch", "Reaper", "Golem", "Werewolf", "Yeti", "Ninja", "Samurai",
+    "Spider", "Crab", "Monkey", "Octopus", "Elephant", "Dinosaur", "Bee", "Shark", 
+    "Bear", "Capybara", "Wolf", "Snake", "Crocodile", "Gorilla", "Tiger", "Lion",
+    "Frog", "Penguin", "Chicken", "Cow", "Pig", "Cat", "Dog", "Horse", "Whale",
+    "Tsunami", "Flood", "Flash Flood", "Satellite", "Volcano", "Supernova", 
+    "Blackhole", "Meteor", "Tornado", "Earthquake", "Lava", "Acid Rain", "Blizzard", 
+    "Lightning", "Fire", "Wildfire", "Avalanche", "Hurricane", "Sandstorm", "Sinkhole",
+    "Eclipse", "Solar Flare", "Zone", "Star", "Sun", "Moon", "Asteroid", "Void",
+    "Acid", "Poison", "Ice", "Quicksand", "Spikes", "Darkness", "Fog", "Mud", "Desert",
+    "School", "Roblox HQ", "Pyramid", "Church", "Backrooms", "Maze", "Prison",
+    "Castle", "Tower", "Bunker", "Safehouse", "Hospital", "City", "Island", "Bridge",
+    "Launchpad", "Medkit", "Car", "Lucky Block", "Boat", "Helicopter", "Titanic",
+    "Spaceship", "Train", "Plane", "UFO", "Trampoline", "Platform", "Wall", "Shield",
+    "Forcefield", "Jetpack", "Wings", "Snowball", "Hot Potato", "Fireworks", "Legos",
+    "Oil", "Falling Blocks", "Slot Machine", "Super Star", "Taco", "Pizza", "Burger",
+    "Apple", "Banana", "Cake", "Cookie", "Donut", "Ice Cream", "Sushi", "Ramen",
+    "Walk", "Teleport", "Skibidi", "Cry", "Sneeze", "Dance", "Jump", "Speed",
+    "Gravity", "Low Gravity", "High Gravity", "Fly", "Push", "Sleep", "Troll",
+    "Upside Down", "Hero", "Domain", "Kill", "MrBeast", "Gojo", "Luffy", "Snap",
+    "Jesus", "Immortal", "God", "Heal", "Clone", "Shrink", "Big", "Invisible"
+}
+
+local AutoWrite = false
+local Index = 1
+
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "SYI_CleanAutoWrite"
+Gui.ResetOnSpawn = false
+Gui.Parent = TargetParent
+
+local Frame = Instance.new("Frame", Gui)
+Frame.Size = UDim2.new(0, 250, 0, 145)
+Frame.Position = UDim2.new(0.5, -125, 0.25, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+Frame.Active = true
+Frame.Draggable = true
+Instance.new("UICorner", Frame).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel", Frame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(38, 38, 48)
+Title.Text = "Survive Your Ideas (Auto Write)"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 13
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+
+local Toggle = Instance.new("TextButton", Frame)
+Toggle.Size = UDim2.new(0.9, 0, 0, 40)
+Toggle.Position = UDim2.new(0.05, 0, 0.3, 0)
+Toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+Toggle.Text = "Auto Write: OFF"
+Toggle.TextColor3 = Color3.new(1, 1, 1)
+Toggle.Font = Enum.Font.GothamBold
+Toggle.TextSize = 14
+Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 6)
+
+local Info = Instance.new("TextLabel", Frame)
+Info.Size = UDim2.new(0.9, 0, 0, 35)
+Info.Position = UDim2.new(0.05, 0, 0.65, 0)
+Info.BackgroundTransparency = 1
+Info.Text = "Status: Waiting for turn..."
+Info.TextColor3 = Color3.fromRGB(180, 220, 255)
+Info.Font = Enum.Font.Gotham
+Info.TextSize = 11
+Info.TextWrapped = true
+
+Toggle.MouseButton1Click:Connect(function()
+    AutoWrite = not AutoWrite
+    Toggle.Text = AutoWrite and "Auto Write: ON" or "Auto Write: OFF"
+    Toggle.BackgroundColor3 = AutoWrite and Color3.fromRGB(45, 180, 85) or Color3.fromRGB(200, 50, 50)
+end)
+
+local function NextWord()
+    local w = WordList[Index]
+    Index = (Index % #WordList) + 1
+    return w
+end
+
+task.spawn(function()
+    while Gui.Parent and task.wait(0.25) do
+        if AutoWrite then
+            local boxes = {}
+            local buttons = {}
+
+            for _, obj in ipairs(PlayerGui:GetDescendants()) do
+                if obj:IsA("TextBox") and obj.Visible then
+                    table.insert(boxes, obj)
+                elseif (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
+                    local nameLower = obj.Name:lower()
+                    local textLower = obj:IsA("TextButton") and obj.Text:lower() or ""
+                    if nameLower:find("submit") or nameLower:find("send") or textLower:find("submit") or textLower:find("send") or textLower:find("write") then
+                        table.insert(buttons, obj)
+                    end
+                end
+            end
+
+            if #boxes > 0 then
+                local filled = false
+                for _, box in ipairs(boxes) do
+                    if box.Text == "" then
+                        local word = NextWord()
+                        Info.Text = "Written: " .. word
+                        box:CaptureFocus()
+                        task.wait(0.05)
+                        box.Text = word
+                        task.wait(0.05)
+                        box:ReleaseFocus(true)
+                        filled = true
+                    end
+                end
+
+                if filled then
+                    task.wait(0.1)
+                    for _, btn in ipairs(buttons) do
+                        if firesignal then
+                            pcall(function() firesignal(btn.MouseButton1Click) end)
+                            pcall(function() firesignal(btn.Activated) end)
+                        end
+                    end
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                    task.wait(0.05)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+
+                    task.wait(1.35)
+                end
+            end
+        end
+    end
+end)
