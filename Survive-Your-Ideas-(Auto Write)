@@ -1,4 +1,22 @@
-if game.PlaceId ~= 77900175935766 then
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local MarketplaceService = game:GetService("MarketplaceService")
+local LobbyPlaceId = 77900175935766
+
+local okLobby, lobbyInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(LobbyPlaceId)
+end)
+
+local okCurrent, currentInfo = pcall(function()
+    return MarketplaceService:GetProductInfo(game.PlaceId)
+end)
+
+local isSameCreator = okLobby and okCurrent and lobbyInfo.Creator and currentInfo.Creator and (lobbyInfo.Creator.Id == currentInfo.Creator.Id)
+local isSameGame = (game.PlaceId == LobbyPlaceId) or (game.GameId == 9085869747) or isSameCreator
+
+if not isSameGame then
     return
 end
 
