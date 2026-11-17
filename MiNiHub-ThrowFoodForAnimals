@@ -408,10 +408,19 @@ Separator.BackgroundColor3 = Color3.fromRGB(65, 55, 80)
 Separator.BorderSizePixel = 0
 Separator.Parent = Sidebar
 
-local TabContainer = Instance.new("Frame")
+local TabContainer = Instance.new("ScrollingFrame")
+TabContainer.Name = "TabContainer"
 TabContainer.Size = UDim2.new(1, -14, 1, -55)
 TabContainer.Position = UDim2.fromOffset(7, 47)
 TabContainer.BackgroundTransparency = 1
+TabContainer.BorderSizePixel = 0
+TabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+TabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+TabContainer.ScrollingDirection = Enum.ScrollingDirection.Y
+TabContainer.ScrollBarThickness = 4
+TabContainer.ScrollBarImageColor3 = Purple
+TabContainer.Active = true
+TabContainer.ClipsDescendants = true
 TabContainer.Parent = Sidebar
 
 local TabLayout = Instance.new("UIListLayout")
@@ -625,7 +634,7 @@ local function CreateTab(Name, Icon)
 	ButtonPadding.PaddingLeft = UDim.new(0, 12)
 	ButtonPadding.Parent = Button
 
-	local Page = Instance.new((Name == "Main" or Name == "Settings" or Name == "Buy/Upgrade" or Name == "Sell") and "ScrollingFrame" or "Frame")
+	local Page = Instance.new((Name == "Main" or Name == "Buy/Upgrade" or Name == "Sell" or Name == "Tip" or Name == "Settings" or Name == "Info") and "ScrollingFrame" or "Frame")
 	Page.Name = Name .. "Page"
 	Page.Size = UDim2.new(1, 0, 1, 0)
 	Page.BackgroundTransparency = 1
@@ -633,7 +642,7 @@ local function CreateTab(Name, Icon)
 	Page.Visible = false
 	Page.Parent = Content
 
-	if Name == "Main" or Name == "Settings" or Name == "Buy/Upgrade" or Name == "Sell" then
+	if Name == "Main" or Name == "Buy/Upgrade" or Name == "Sell" or Name == "Tip" or Name == "Settings" or Name == "Info" then
 		Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 		Page.CanvasSize = UDim2.new(0, 0, 0, 0)
 		Page.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -669,6 +678,7 @@ end
 local MainPage = CreateTab("Main", "◆")
 local BuyUpgradePage = CreateTab("Buy/Upgrade", "🛒")
 local SellPage = CreateTab("Sell", "💰")
+local TipPage = CreateTab("Tip", "💡")
 local SettingsPage = CreateTab("Settings", "⚙️")
 local InfoPage = CreateTab("Info", "ℹ️")
 
@@ -2478,52 +2488,45 @@ local function IsFoodAffordable(Button)
 end
 
 
-
 local function GetAffordableFoodCard()
 	local AvailableFoods = {}
+	local Money = GetPlayerMoney()
+
+	if not Money then return nil end
 
 	for _, Food in ipairs(GetFoodCards()) do
 		local Button = Food.Button
 
 		if Button and Button.Parent and Button.BackgroundColor3 == FOOD_READY_COLOR then
-			local Price = GetFoodPrice(Button)
+			local Price, PriceText = GetFoodPrice(Button)
 
-			if Price then
+			if Price and Money >= Price then
 				table.insert(AvailableFoods, {
 					Frame = Food.Frame,
 					Button = Button,
-					Price = Price
+					Price = Price,
+					PriceText = PriceText
 				})
 			end
 		end
 	end
 
-	if #AvailableFoods == 0 then
-		return nil
-	end
+	if #AvailableFoods == 0 then return nil end
 
 	if AutoBuyFoodMode == "Food Best" then
 		table.sort(AvailableFoods, function(A, B)
 			return A.Price > B.Price
 		end)
-
-		local BestFood = AvailableFoods[1]
-		local Money = GetPlayerMoney()
-
-		if not Money or Money < BestFood.Price then
-			return nil
-		end
-
-		return BestFood
+		return AvailableFoods[1]
 	end
 
-	for _, Food in ipairs(AvailableFoods) do
-		if IsFoodAffordable(Food.Button) then
-			return Food
-		end
-	end
+	table.sort(AvailableFoods, function(A, B)
+		local NumberA = tonumber(A.Frame.Name:match("%d+")) or 0
+		local NumberB = tonumber(B.Frame.Name:match("%d+")) or 0
+		return NumberA < NumberB
+	end)
 
-	return nil
+	return AvailableFoods[1]
 end
 
 local function TeleportToFoodShop()
@@ -2829,6 +2832,57 @@ local function GetUpgradePrice()
 	return ParseFormattedNumber(PriceLabel.Text), PriceLabel.Text
 end
 
+local function GetFoodTargetPrice()
+	local Foods = {}
+
+	for _, Food in ipairs(GetFoodCards()) do
+		local Button = Food.Button
+		if Button and Button.Parent and Button.BackgroundColor3 == FOOD_READY_COLOR then
+			local Price = GetFoodPrice(Button)
+			if Price then
+				table.insert(Foods, {Frame = Food.Frame, Price = Price})
+			end
+		end
+	end
+
+	if #Foods == 0 then return nil end
+
+	if AutoBuyFoodMode == "Food Best" then
+		table.sort(Foods, function(A, B)
+			return A.Price > B.Price
+		end)
+		return Foods[1].Price
+	end
+
+	table.sort(Foods, function(A, B)
+		return (tonumber(A.Frame.Name:match("%d+")) or 0) < (tonumber(B.Frame.Name:match("%d+")) or 0)
+	end)
+
+	return Foods[1].Price
+end
+
+local function ShouldAutoUpgradeGoFirst()
+	if not AutoBuyFoodEnabled then return true end
+
+	local Money = GetPlayerMoney()
+	local UpgradePrice = GetUpgradePrice()
+	local FoodPrice = GetFoodTargetPrice()
+
+	if not Money or not UpgradePrice then return false end
+	if not FoodPrice then return true end
+
+	local CanUpgrade = Money >= UpgradePrice
+	local CanBuyFood = Money >= FoodPrice
+
+	if CanUpgrade and not CanBuyFood then return true end
+	if CanBuyFood and not CanUpgrade then return false end
+	if not CanUpgrade and not CanBuyFood then return false end
+
+	if UpgradePrice < FoodPrice then return true end
+	if FoodPrice < UpgradePrice then return false end
+
+	return AutoTrainingEnabled and not AutoThrowEnabled
+end
 
 local function TeleportToUpgradeButton()
 	if AutoFoodBusy then return false end
@@ -2886,6 +2940,36 @@ local function ClickTrainingUpgradeButton()
 	end)
 
 	return Success
+end
+
+local function FinishTrainingSequenceForFood(Token)
+	if not AutoTrainingEnabled then return true end
+
+	while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
+		local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+
+		if not TrainingSequence or not TrainingSequence.Enabled then
+			return true
+		end
+
+		for i = 1, 3 do
+			TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+
+			if not TrainingSequence or not TrainingSequence.Enabled then
+				return true
+			end
+
+			if not ClickTrainingUpgradeButton() then
+				break
+			end
+
+			task.wait(0.08)
+		end
+
+		task.wait(0.05)
+	end
+
+	return false
 end
 
 local function TriggerUpgradePrompt()
@@ -2956,11 +3040,20 @@ AutoUpgradeTrainingButton.MouseButton1Click:Connect(function()
 			local Money = GetPlayerMoney()
 			local Price = GetUpgradePrice()
 
-			if Money and Price and Money >= Price then
+			if Money and Price and Money >= Price and ShouldAutoUpgradeGoFirst() then
+				while AutoUpgradeTrainingEnabled and AutoUpgradeTrainingToken == Token and AutoThrowEnabled and PlayerGui:FindFirstChild("ThrowSequence", true) and not IsClosing do
+					task.wait(0.05)
+				end
+
+				if not AutoUpgradeTrainingEnabled or AutoUpgradeTrainingToken ~= Token or IsClosing then
+					break
+				end
+
 				AutoActionsPausedByUpgrade = true
 
-				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
-				if ThrowSequence and ThrowSequence:IsA("ScreenGui") and ThrowSequence.Enabled then
+				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence", true)
+				if ThrowSequence then
+					AutoActionsPausedByUpgrade = false
 					task.wait(0.05)
 					continue
 				end
@@ -3050,6 +3143,7 @@ AutoUpgradeTrainingButton.MouseLeave:Connect(function()
 end)
 
 
+
 AutoBuyFoodButton.MouseButton1Click:Connect(function()
 	if IsClosing then return end
 
@@ -3088,28 +3182,74 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 	SetAutoBuyFoodState(true)
 	Notify("Auto Buy Food has been enabled!")
 
-
 	task.spawn(function()
 		while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
+			local AvailableFood = GetAffordableFoodCard()
+
+			if not AvailableFood then
+				task.wait(1)
+				continue
+			end
+
 			while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
-				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
+				local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence", true)
+
 				if not ThrowSequence or not ThrowSequence.Enabled then
 					break
 				end
-				task.wait(0.1)
+
+				task.wait(0.05)
 			end
 
-			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token then
+			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token or IsClosing then
 				break
 			end
-			
+
+			AvailableFood = GetAffordableFoodCard()
+
+			if not AvailableFood then
+				task.wait(1)
+				continue
+			end
+
 			AutoFoodPreviousTraining = AutoTrainingEnabled
 			AutoFoodPreviousThrow = AutoThrowEnabled
+
 			AutoFoodBusy = true
 			SetFoodPauseVisual(true)
-			
+
+			if AutoFoodPreviousTraining then
+				if not FinishTrainingSequenceForFood(Token) then
+					AutoFoodBusy = false
+					SetFoodPauseVisual(false)
+					break
+				end
+			end
+
+			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token or IsClosing then
+				AutoFoodBusy = false
+				SetFoodPauseVisual(false)
+				break
+			end
+
+			while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
+				local TrainingSequence = PlayerGui:FindFirstChild("TrainingSequence", true)
+
+				if not TrainingSequence then
+					break
+				end
+
+				task.wait(0.05)
+			end
+
+			if not AutoBuyFoodEnabled or AutoBuyFoodToken ~= Token or IsClosing then
+				AutoFoodBusy = false
+				SetFoodPauseVisual(false)
+				break
+			end
+
 			if not TeleportToFoodShop() then
-				warn("[Auto Buy Food] Teleport failed: ZonePad, Character, Humanoid or HumanoidRootPart not found!")
+				warn("[Auto Buy Food] Teleport failed!")
 				AutoFoodBusy = false
 				SetFoodPauseVisual(false)
 				task.wait(0.5)
@@ -3117,36 +3257,19 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 			end
 
 			print("[Auto Buy Food] Teleported to ZonePad:", GetFoodShopWorld())
-
 			task.wait(0.3)
 
 			if not WaitForFoodShopOpen(Token) then
-				warn("[Auto Buy Food] FoodShop GUI did not open after teleport!")
+				warn("[Auto Buy Food] FoodShop GUI did not open!")
 				AutoFoodBusy = false
 				SetFoodPauseVisual(false)
 				task.wait(0.5)
 				continue
 			end
-			
-			local Food = GetAffordableFoodCard()
-
-			if not Food then
-				CloseFoodShop()
-				task.wait(0.115)
-				AutoFoodBusy = false
-				SetFoodPauseVisual(false)
-				AutoFoodPreviousTraining = false
-				AutoFoodPreviousThrow = false
-				task.wait(0.4)
-				continue
-			end
 
 			local BoughtAnything = false
 
-			while AutoBuyFoodEnabled
-				and AutoBuyFoodToken == Token
-				and not IsClosing do
-
+			while AutoBuyFoodEnabled and AutoBuyFoodToken == Token and not IsClosing do
 				local CurrentFood = GetAffordableFoodCard()
 
 				if not CurrentFood then
@@ -3158,28 +3281,24 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 				ScrollToFoodButton(Button)
 				task.wait(0.15)
 
-				if not Button.Parent
-					or not IsFoodAffordable(Button) then
+				if not Button.Parent or not IsFoodAffordable(Button) then
 					task.wait(0.1)
 					continue
 				end
 
 				local Price, PriceText = GetFoodPrice(Button)
 
-				print(
-					"[Auto Buy Food] Buying:",
-					CurrentFood.Frame.Name,
-					"Price:",
-					PriceText,
-					"Money:",
-					GetPlayerMoney()
-				)
+				print("[Auto Buy Food] Buying:", CurrentFood.Frame.Name, "Price:", PriceText, "Money:", GetPlayerMoney())
 
 				local Clicked = SpamFoodButton(Button)
 
 				if Clicked then
 					BoughtAnything = true
 					task.wait(0.4)
+
+					if AutoBuyFoodMode == "Food Best" then
+						break
+					end
 				else
 					task.wait(0.2)
 				end
@@ -3190,25 +3309,30 @@ AutoBuyFoodButton.MouseButton1Click:Connect(function()
 			end
 
 			CloseFoodShop()
-
 			task.wait(0.115)
 
 			AutoFoodBusy = false
 			SetFoodPauseVisual(false)
+			AutoFoodPreviousTraining = false
+			AutoFoodPreviousThrow = false
+
+			if BoughtAnything and AutoBuyFoodMode == "Food Best" then
+				AutoBuyFoodEnabled = false
+				AutoBuyFoodToken += 1
+				SetAutoBuyFoodState(false)
+				print("[Auto Buy Food] Food Best purchased! Auto Buy Food stopped.")
+				break
+			end
 
 			if BoughtAnything then
 				print("[Auto Buy Food] Purchase cycle completed!")
 			end
-
-			AutoFoodPreviousTraining = false
-			AutoFoodPreviousThrow = false
 
 			task.wait(0.5)
 		end
 
 		AutoFoodBusy = false
 		SetFoodPauseVisual(false)
-
 		AutoFoodPreviousTraining = false
 		AutoFoodPreviousThrow = false
 	end)
@@ -3443,6 +3567,92 @@ Gradient(CreditLabel, {
 
 SelectTab("Main")
 
+
+local TipTitle = Instance.new("TextLabel")
+TipTitle.Size = UDim2.new(1, 0, 0, 32)
+TipTitle.BackgroundTransparency = 1
+TipTitle.Text = "💡  Tips & Recommended Settings"
+TipTitle.TextColor3 = Color3.fromRGB(230, 205, 255)
+TipTitle.Font = Enum.Font.GothamBold
+TipTitle.TextSize = 19
+TipTitle.TextXAlignment = Enum.TextXAlignment.Left
+TipTitle.Parent = TipPage
+
+local TipDescription = Instance.new("TextLabel")
+TipDescription.Size = UDim2.new(1, 0, 0, 25)
+TipDescription.Position = UDim2.fromOffset(0, 35)
+TipDescription.BackgroundTransparency = 1
+TipDescription.Text = "Recommended combinations for better automation."
+TipDescription.TextColor3 = Color3.fromRGB(145, 135, 165)
+TipDescription.Font = Enum.Font.Gotham
+TipDescription.TextSize = 12
+TipDescription.TextXAlignment = Enum.TextXAlignment.Left
+TipDescription.Parent = TipPage
+
+local ThrowTipCard = Instance.new("Frame")
+ThrowTipCard.Size = UDim2.new(1, 0, 0, 125)
+ThrowTipCard.Position = UDim2.fromOffset(0, 70)
+ThrowTipCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+ThrowTipCard.BorderSizePixel = 0
+ThrowTipCard.Parent = TipPage
+Corner(ThrowTipCard, 9)
+Stroke(ThrowTipCard, Color3.fromRGB(90, 60, 120), 1)
+
+local ThrowTipTitle = Instance.new("TextLabel")
+ThrowTipTitle.Size = UDim2.new(1, -24, 0, 28)
+ThrowTipTitle.Position = UDim2.fromOffset(12, 8)
+ThrowTipTitle.BackgroundTransparency = 1
+ThrowTipTitle.Text = "🥏  THROW"
+ThrowTipTitle.TextColor3 = Color3.fromRGB(255, 190, 120)
+ThrowTipTitle.Font = Enum.Font.GothamBold
+ThrowTipTitle.TextSize = 15
+ThrowTipTitle.TextXAlignment = Enum.TextXAlignment.Left
+ThrowTipTitle.Parent = ThrowTipCard
+
+local ThrowTipText = Instance.new("TextLabel")
+ThrowTipText.Size = UDim2.new(1, -24, 0, 80)
+ThrowTipText.Position = UDim2.fromOffset(12, 38)
+ThrowTipText.BackgroundTransparency = 1
+ThrowTipText.Text = "• Auto Throw\n• Auto Equip Best\n• Auto Buy Food\n• Auto Buy Food Mode: Food Best\n• Anti AFK"
+ThrowTipText.TextColor3 = Color3.fromRGB(195, 180, 215)
+ThrowTipText.Font = Enum.Font.Gotham
+ThrowTipText.TextSize = 12
+ThrowTipText.TextXAlignment = Enum.TextXAlignment.Left
+ThrowTipText.TextYAlignment = Enum.TextYAlignment.Top
+ThrowTipText.Parent = ThrowTipCard
+
+local TrainingTipCard = Instance.new("Frame")
+TrainingTipCard.Size = UDim2.new(1, 0, 0, 115)
+TrainingTipCard.Position = UDim2.fromOffset(0, 205)
+TrainingTipCard.BackgroundColor3 = Color3.fromRGB(34, 30, 48)
+TrainingTipCard.BorderSizePixel = 0
+TrainingTipCard.Parent = TipPage
+Corner(TrainingTipCard, 9)
+Stroke(TrainingTipCard, Color3.fromRGB(90, 60, 120), 1)
+
+local TrainingTipTitle = Instance.new("TextLabel")
+TrainingTipTitle.Size = UDim2.new(1, -24, 0, 28)
+TrainingTipTitle.Position = UDim2.fromOffset(12, 8)
+TrainingTipTitle.BackgroundTransparency = 1
+TrainingTipTitle.Text = "🏋️  TRAINING"
+TrainingTipTitle.TextColor3 = Color3.fromRGB(130, 190, 255)
+TrainingTipTitle.Font = Enum.Font.GothamBold
+TrainingTipTitle.TextSize = 15
+TrainingTipTitle.TextXAlignment = Enum.TextXAlignment.Left
+TrainingTipTitle.Parent = TrainingTipCard
+
+local TrainingTipText = Instance.new("TextLabel")
+TrainingTipText.Size = UDim2.new(1, -24, 0, 75)
+TrainingTipText.Position = UDim2.fromOffset(12, 38)
+TrainingTipText.BackgroundTransparency = 1
+TrainingTipText.Text = "• Auto Training\n• Auto Upgrade Training\n• Anti AFK"
+TrainingTipText.TextColor3 = Color3.fromRGB(195, 180, 215)
+TrainingTipText.Font = Enum.Font.Gotham
+TrainingTipText.TextSize = 12
+TrainingTipText.TextXAlignment = Enum.TextXAlignment.Left
+TrainingTipText.TextYAlignment = Enum.TextYAlignment.Top
+TrainingTipText.Parent = TrainingTipCard
+
 MinimizeButton.MouseEnter:Connect(function()
 	Tween(MinimizeButton, FastTween, {BackgroundColor3 = Color3.fromRGB(110, 80, 145)})
 end)
@@ -3542,29 +3752,38 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 				continue
 			end
 
-			local Money = GetPlayerMoney()
-			local Price = GetUpgradePrice()
+			local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence", true)
 
-			if AutoUpgradeTrainingEnabled and Money and Price and Money >= Price then
-				task.wait(0.05)
-				continue
+			if not ThrowSequence then
+				local Money = GetPlayerMoney()
+				local Price = GetUpgradePrice()
+
+				if AutoUpgradeTrainingEnabled and Money and Price and Money >= Price then
+					task.wait(0.05)
+					continue
+				end
 			end
-
-			local ThrowSequence = PlayerGui:FindFirstChild("ThrowSequence")
 
 			if ThrowSequence and ThrowSequence.Enabled then
 				if tick() - LastClick >= 0.5 then
-					local HasVisibleLabel = false
+					local TargetLabel = nil
 
-					for _, Object in ipairs(ThrowSequence:GetChildren()) do
+					for _, Object in ipairs(ThrowSequence:GetDescendants()) do
 						if Object:IsA("TextLabel") and Object.Visible and Object.AbsoluteSize.X > 0 and Object.AbsoluteSize.Y > 0 then
-							HasVisibleLabel = true
+							TargetLabel = Object
 							break
 						end
 					end
 
-					if HasVisibleLabel and AutoThrowEnabled and AutoThrowToken == Token and not AutoActionsPausedByUpgrade then
-						ClickScreen()
+					if TargetLabel and AutoThrowEnabled and AutoThrowToken == Token and not AutoActionsPausedByUpgrade then
+						local Position = TargetLabel.AbsolutePosition
+						local Size = TargetLabel.AbsoluteSize
+						local CenterX = Position.X + Size.X / 2
+						local CenterY = Position.Y + Size.Y / 2
+
+						VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 0)
+						VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 0)
+
 						LastClick = tick()
 					end
 				end
@@ -3578,6 +3797,7 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 		end
 	end)
 end)
+
 local RenderConnection
 local PreviousMarkerTop = nil
 local WasAboveTop = false
