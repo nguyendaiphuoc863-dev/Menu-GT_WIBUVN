@@ -3698,29 +3698,19 @@ MinimizeButton.MouseButton1Click:Connect(function()
 	IsAnimating = false
 end)
 
-
-local function ClickScreen(TargetLabel)
+local function ClickScreen()
 	if IsClosing or AutoActionsPausedByUpgrade or (not AutoEnabled and not AutoThrowEnabled) then return end
 
 	local Camera = workspace.CurrentCamera
 	if not Camera then return end
 
-	local ClickX, ClickY
+	local ViewportSize = Camera.ViewportSize
+	local CenterX = ViewportSize.X / 2
+	local CenterY = ViewportSize.Y / 2
 
-	if TargetLabel and TargetLabel:IsA("TextLabel") and TargetLabel.Visible and TargetLabel.AbsoluteSize.X > 0 and TargetLabel.AbsoluteSize.Y > 0 then
-		local Position = TargetLabel.AbsolutePosition
-		local Size = TargetLabel.AbsoluteSize
-		ClickX = Position.X + Size.X / 2
-		ClickY = Position.Y + Size.Y / 2
-	else
-		local ViewportSize = Camera.ViewportSize
-		ClickX = ViewportSize.X / 2
-		ClickY = ViewportSize.Y / 2
-	end
-
-	VirtualInputManager:SendMouseButtonEvent(ClickX, ClickY, 0, true, game, 1)
+	VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 1)
 	task.wait(0.03)
-	VirtualInputManager:SendMouseButtonEvent(ClickX, ClickY, 0, false, game, 1)
+	VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 1)
 end
 
 AutoThrowButton.MouseButton1Click:Connect(function()
@@ -3786,7 +3776,14 @@ AutoThrowButton.MouseButton1Click:Connect(function()
 					end
 
 					if TargetLabel and AutoThrowEnabled and AutoThrowToken == Token and not AutoActionsPausedByUpgrade then
-						ClickScreen(TargetLabel)
+						local Position = TargetLabel.AbsolutePosition
+						local Size = TargetLabel.AbsoluteSize
+						local CenterX = Position.X + Size.X / 2
+						local CenterY = Position.Y + Size.Y / 2
+
+						VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, true, game, 0)
+						VirtualInputManager:SendMouseButtonEvent(CenterX, CenterY, 0, false, game, 0)
+
 						LastClick = tick()
 					end
 				end
@@ -3870,6 +3867,7 @@ RainbowTween:Play()
 NoButton.MouseButton1Click:Connect(function()
 	closeWarning()
 end)
+
 
 YesButton.MouseButton1Click:Connect(function()
 	if IsClosing then return end
